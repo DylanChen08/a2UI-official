@@ -1,0 +1,80 @@
+{
+  "title": "A2UI (Agent to UI) Client-to-Server Event Schema",
+  "description": "Describes a JSON payload for a client-to-server event message.",
+  "type": "object",
+  "minProperties": 1,
+  "maxProperties": 1,
+  "properties": {
+    "userAction": {
+      "type": "object",
+      "description": "Reports a user-initiated action from a component. Optional fields deliveryMode, localDataModelUpdate, and openLink are implementation-layer extensions (see docs/local-client-dataModel-extension-v0_8.md); they are not required for a minimal client-to-server forwarder.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the action, taken from the component's action.name property."
+        },
+        "surfaceId": {
+          "type": "string",
+          "description": "The id of the surface where the event originated."
+        },
+        "sourceComponentId": {
+          "type": "string",
+          "description": "The id of the component that triggered the event."
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time",
+          "description": "An ISO 8601 timestamp of when the event occurred."
+        },
+        "context": {
+          "type": "object",
+          "description": "A JSON object containing the key-value pairs from the component's action.context, after resolving all data bindings.",
+          "additionalProperties": true
+        },
+        "deliveryMode": {
+          "type": "string",
+          "description": "Implementation extension: \"server\" (default semantics: forward userAction only) or \"local\" (client may apply localDataModelUpdate before or without server round-trip).",
+          "enum": ["server", "local"]
+        },
+        "localDataModelUpdate": {
+          "type": "object",
+          "description": "Implementation extension: same shape as server-to-client dataModelUpdate (surfaceId, optional path, contents). May mirror Button.action.localDataModelUpdate for logging or transport.",
+          "additionalProperties": true
+        },
+        "openLink": {
+          "type": "object",
+          "description": "Implementation extension: client-side navigation intent; mirrors Button.action.openLink (url, optional target).",
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "Absolute or relative URL to open."
+            },
+            "target": {
+              "type": "string",
+              "description": "Browsing context name; default _blank for new tab.",
+              "enum": ["_blank", "_self", "_parent", "_top"]
+            }
+          },
+          "required": ["url"]
+        }
+      },
+      "required": [
+        "name",
+        "surfaceId",
+        "sourceComponentId",
+        "timestamp",
+        "context"
+      ]
+    },
+    "error": {
+      "type": "object",
+      "description": "Reports a client-side error. The content is flexible.",
+      "additionalProperties": true
+    }
+  },
+  "oneOf": [
+    { "required": ["userAction"] },
+    { "required": ["error"] }
+  ]
+}

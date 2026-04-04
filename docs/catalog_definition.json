@@ -1,0 +1,269 @@
+{
+  "$schema": "../specification/v0_8/json/catalog_description_schema.json",
+  "catalogId": "a2ui-full:docs-atomic-components-v0_8",
+  "title": "Atomic hosted components — subset of standard_catalog_definition.json",
+  "description": "自 specification/v0_8/json/standard_catalog_definition.json 抽取：含原子组件 Text、Image、Icon、Button；容器 Card（卡面包裹，child 指向内层 Column/Row）及 Column/Row/List 见标准全量 catalog。AnimatedWrapper 仅为样式包装，非 catalog 组件键。",
+  "components": {
+    "Text": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "object",
+          "description": "The text content to display. This can be a literal string or a reference to a value in the data model ('path', e.g., '/doc/title'). While simple Markdown formatting is supported (i.e. without HTML, images, or links), utilizing dedicated UI components is generally preferred for a richer and more structured presentation.",
+          "additionalProperties": false,
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "usageHint": {
+          "type": "string",
+          "description": "A hint for the base text style. One of:\n- `h1`: Largest heading.\n- `h2`: Second largest heading.\n- `h3`: Third largest heading.\n- `h4`: Fourth largest heading.\n- `h5`: Fifth largest heading.\n- `caption`: Small text for captions.\n- `body`: Standard body text.",
+          "enum": [
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "caption",
+            "body"
+          ]
+        }
+      },
+      "required": [
+        "text"
+      ]
+    },
+    "Image": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "url": {
+          "type": "object",
+          "description": "The URL of the image to display. This can be a literal string ('literal') or a reference to a value in the data model ('path', e.g. '/thumbnail/url').",
+          "additionalProperties": false,
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "fit": {
+          "type": "string",
+          "description": "Specifies how the image should be resized to fit its container. This corresponds to the CSS 'object-fit' property.",
+          "enum": [
+            "contain",
+            "cover",
+            "fill",
+            "none",
+            "scale-down"
+          ]
+        },
+        "usageHint": {
+          "type": "string",
+          "description": "A hint for the image size and style. One of:\n- `icon`: Small square icon.\n- `avatar`: Circular avatar image.\n- `smallFeature`: Small feature image.\n- `mediumFeature`: Medium feature image.\n- `largeFeature`: Large feature image.\n- `header`: Full-width, full bleed, header image.",
+          "enum": [
+            "icon",
+            "avatar",
+            "smallFeature",
+            "mediumFeature",
+            "largeFeature",
+            "header"
+          ]
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
+    "Icon": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "object",
+          "description": "The name of the icon to display. This can be a literal string or a reference to a value in the data model ('path', e.g. '/form/submit').",
+          "additionalProperties": false,
+          "properties": {
+            "literalString": {
+              "type": "string",
+              "enum": [
+                "accountCircle",
+                "add",
+                "arrowBack",
+                "arrowForward",
+                "attachFile",
+                "calendarToday",
+                "call",
+                "camera",
+                "check",
+                "close",
+                "delete",
+                "download",
+                "edit",
+                "event",
+                "error",
+                "favorite",
+                "favoriteOff",
+                "folder",
+                "help",
+                "home",
+                "info",
+                "locationOn",
+                "lock",
+                "lockOpen",
+                "mail",
+                "menu",
+                "moreVert",
+                "moreHoriz",
+                "notificationsOff",
+                "notifications",
+                "payment",
+                "person",
+                "phone",
+                "photo",
+                "print",
+                "refresh",
+                "search",
+                "send",
+                "settings",
+                "share",
+                "shoppingCart",
+                "star",
+                "starHalf",
+                "starOff",
+                "upload",
+                "visibility",
+                "visibilityOff",
+                "warning"
+              ]
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "required": [
+        "name"
+      ]
+    },
+    "Button": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "child": {
+          "type": "string",
+          "description": "The ID of the component to display in the button, typically a Text component."
+        },
+        "primary": {
+          "type": "boolean",
+          "description": "Indicates if this button should be styled as the primary action."
+        },
+        "action": {
+          "type": "object",
+          "description": "The client-side action to be dispatched when the button is clicked. It includes the action's name and an optional context payload.",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "context": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "key": {
+                    "type": "string"
+                  },
+                  "value": {
+                    "type": "object",
+                    "description": "Defines the value to be included in the context as either a literal value or a path to a data model value (e.g. '/user/name').",
+                    "additionalProperties": false,
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "literalString": {
+                        "type": "string"
+                      },
+                      "literalNumber": {
+                        "type": "number"
+                      },
+                      "literalBoolean": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "key",
+                  "value"
+                ]
+              }
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      },
+      "required": [
+        "child",
+        "action"
+      ]
+    },
+    "Card": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "卡片容器：用于商品卡、信息卡等；最外层 root 常为 Card 的 id。",
+      "properties": {
+        "child": {
+          "type": "string",
+          "description": "The ID of the component to be rendered inside the card (typically Column or Row)."
+        },
+        "title": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "literalString": { "type": "string" },
+            "path": { "type": "string" }
+          }
+        },
+        "subtitle": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "literalString": { "type": "string" },
+            "path": { "type": "string" }
+          }
+        },
+        "elevation": {
+          "type": "number",
+          "description": "Shadow depth hint for host styling."
+        }
+      },
+      "required": ["child"]
+    }
+  },
+  "styles": {
+    "font": {
+      "type": "string",
+      "description": "The primary font for the UI."
+    },
+    "primaryColor": {
+      "type": "string",
+      "description": "The primary UI color as a hexadecimal code (e.g., '#00BFFF').",
+      "pattern": "^#[0-9a-fA-F]{6}$"
+    }
+  }
+}

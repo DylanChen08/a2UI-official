@@ -1,0 +1,15 @@
+{
+  "name": "a2ui-full",
+  "version": "1.0.0",
+  "description": "A2UI - AI to UI playground",
+  "private": true,
+  "scripts": {
+    "dev:web": "pnpm -F a2ui-playground dev",
+    "dev:server": "pnpm -F a2ui-playground-server dev",
+    "build": "pnpm -F a2ui-core -F a2ui-react build",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}

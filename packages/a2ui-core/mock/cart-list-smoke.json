@@ -1,0 +1,118 @@
+{
+  "beginRendering": {
+    "surfaceId": "surface-cart",
+    "root": "cart-root"
+  },
+  "dataModelUpdate": {
+    "surfaceId": "surface-cart",
+    "path": "/cart",
+    "contents": [
+      {
+        "key": "items",
+        "valueMap": [
+          {
+            "key": "0",
+            "valueMap": [
+              { "key": "line", "valueString": "拿铁（大杯） × 2    ¥36.00" }
+            ]
+          },
+          {
+            "key": "1",
+            "valueMap": [
+              { "key": "line", "valueString": "可颂 × 1    ¥12.00" }
+            ]
+          },
+          {
+            "key": "2",
+            "valueMap": [
+              { "key": "line", "valueString": "运费    ¥8.00" }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-cart",
+    "components": [
+      {
+        "id": "cart-root",
+        "component": {
+          "Column": {
+            "children": {
+              "explicitList": [
+                "cart-title",
+                "cart-list",
+                "cart-hint",
+                "cart-checkout"
+              ]
+            },
+            "distribution": "start",
+            "alignment": "stretch"
+          }
+        }
+      },
+      {
+        "id": "cart-title",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "购物车"
+            },
+            "usageHint": "h2"
+          }
+        }
+      },
+      {
+        "id": "cart-list",
+        "component": {
+          "List": {
+            "children": {
+              "template": {
+                "componentId": "cart-line-tpl",
+                "dataBinding": "/cart/items"
+              }
+            },
+            "direction": "vertical",
+            "alignment": "stretch"
+          }
+        }
+      },
+      {
+        "id": "cart-line-tpl",
+        "component": {
+          "Text": {
+            "text": {
+              "path": "line",
+              "literalString": "—"
+            },
+            "usageHint": "body"
+          }
+        }
+      },
+      {
+        "id": "cart-hint",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "共 3 行明细（来自 dataModelUpdate）；「去结算」为演示按钮"
+            },
+            "usageHint": "caption"
+          }
+        }
+      },
+      {
+        "id": "cart-checkout",
+        "component": {
+          "Button": {
+            "text": {
+              "literalString": "去结算 ¥56.00"
+            },
+            "variant": "primary",
+            "size": "large"
+          }
+        }
+      }
+    ]
+  }
+}

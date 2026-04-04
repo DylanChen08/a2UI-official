@@ -1,0 +1,39 @@
+{
+  "beginRendering": {
+    "surfaceId": "surface-dm",
+    "root": "root-col"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-dm",
+    "components": [
+      {
+        "id": "root-col",
+        "component": {
+          "Column": {
+            "children": { "explicitList": ["title-text"] },
+            "distribution": "start"
+          }
+        }
+      },
+      {
+        "id": "title-text",
+        "component": {
+          "Text": {
+            "text": {
+              "path": "/doc/title",
+              "literalString": "(loading)"
+            },
+            "usageHint": "h2"
+          }
+        }
+      }
+    ]
+  },
+  "dataModelUpdate": {
+    "surfaceId": "surface-dm",
+    "path": "/doc",
+    "contents": [
+      { "key": "title", "valueString": "Hello from data model" }
+    ]
+  }
+}

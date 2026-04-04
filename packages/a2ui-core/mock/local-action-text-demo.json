@@ -1,0 +1,71 @@
+{
+  "beginRendering": {
+    "surfaceId": "surface-local",
+    "root": "root-col"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-local",
+    "components": [
+      {
+        "id": "root-col",
+        "component": {
+          "Column": {
+            "children": { "explicitList": ["line-text", "btn-update", "btn-open-link"] },
+            "distribution": "start",
+            "alignment": "start"
+          }
+        }
+      },
+      {
+        "id": "line-text",
+        "component": {
+          "Text": {
+            "text": {
+              "path": "/demo/line",
+              "literalString": "fallback"
+            },
+            "usageHint": "body"
+          }
+        }
+      },
+      {
+        "id": "btn-update",
+        "component": {
+          "Button": {
+            "text": { "literalString": "更新文案" },
+            "variant": "primary",
+            "action": {
+              "name": "updateDemoLine",
+              "localDataModelUpdate": {
+                "surfaceId": "surface-local",
+                "path": "/demo",
+                "contents": [{ "key": "line", "valueString": "已点击按钮更新" }]
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "btn-open-link",
+        "component": {
+          "Button": {
+            "text": { "literalString": "打开 Example.com" },
+            "variant": "outline",
+            "action": {
+              "name": "openExample",
+              "openLink": {
+                "url": "https://example.com",
+                "target": "_blank"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "dataModelUpdate": {
+    "surfaceId": "surface-local",
+    "path": "/demo",
+    "contents": [{ "key": "line", "valueString": "初始文案" }]
+  }
+}

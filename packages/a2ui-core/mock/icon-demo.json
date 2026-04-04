@@ -1,0 +1,57 @@
+{
+  "beginRendering": {
+    "surfaceId": "surface-001",
+    "root": "icon-container"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-001",
+    "components": [
+      {
+        "id": "icon-container",
+        "component": {
+          "Row": {
+            "children": {
+              "explicitList": [
+                "icon-1",
+                "icon-2",
+                "icon-3"
+              ]
+            },
+            "distribution": "space-around",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "icon-1",
+        "component": {
+          "Icon": {
+            "name": "🔍",
+            "size": 24,
+            "color": "#007bff"
+          }
+        }
+      },
+      {
+        "id": "icon-2",
+        "component": {
+          "Icon": {
+            "name": "❤️",
+            "size": 32,
+            "color": "#ff4d4f"
+          }
+        }
+      },
+      {
+        "id": "icon-3",
+        "component": {
+          "Icon": {
+            "name": "🚀",
+            "size": 40,
+            "color": "#52c41a"
+          }
+        }
+      }
+    ]
+  }
+}

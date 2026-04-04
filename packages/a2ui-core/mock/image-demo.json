@@ -1,0 +1,52 @@
+{
+  "beginRendering": {
+    "surfaceId": "surface-001",
+    "root": "image-container"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-001",
+    "components": [
+      {
+        "id": "image-container",
+        "component": {
+          "Column": {
+            "children": {
+              "explicitList": [
+                "image-1",
+                "image-2"
+              ]
+            },
+            "distribution": "start",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "image-1",
+        "component": {
+          "Image": {
+            "url": {
+              "literalString": "https://picsum.photos/200/300"
+            },
+            "alt": "Demo Image 1",
+            "width": 200,
+            "height": 300
+          }
+        }
+      },
+      {
+        "id": "image-2",
+        "component": {
+          "Image": {
+            "url": {
+              "literalString": "https://picsum.photos/300/200"
+            },
+            "alt": "Demo Image 2",
+            "width": 300,
+            "height": 200
+          }
+        }
+      }
+    ]
+  }
+}

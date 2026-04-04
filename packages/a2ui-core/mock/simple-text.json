@@ -1,0 +1,22 @@
+{
+  "beginRendering": {
+    "surfaceId": "surface-001",
+    "root": "text-component"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-001",
+    "components": [
+      {
+        "id": "text-component",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Hello!"
+            },
+            "usageHint": "h4"
+          }
+        }
+      }
+    ]
+  }
+}

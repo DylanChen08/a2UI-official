@@ -1,0 +1,365 @@
+chunk-ERKY3CUC.js?v=a3f69a57:21551 Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+App.tsx:126 [App] useEffect 被执行
+App.tsx:159 [App] 解析 beginRendering 消息
+App.tsx:160 [App] selectedMockData: {
+  "beginRendering": {
+    "surfaceId": "surface-001",
+    "root": "column-container"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-001",
+    "components": [
+      {
+        "id": "column-container",
+        "component": {
+          "Column": {
+            "children": {
+              "explicitList": [
+                "text-1",
+                "text-2",
+                "text-3"
+              ]
+            },
+            "distribution": "start",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "text-1",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "First Text Component"
+            },
+            "usageHint": "h1"
+          }
+        }
+      },
+      {
+        "id": "text-2",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Second Text Component"
+            },
+            "usageHint": "h2"
+          }
+        }
+      },
+      {
+        "id": "text-3",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Third Text Component"
+            },
+            "usageHint": "h3"
+          }
+        }
+      }
+    ]
+  }
+}
+index.ts:549 [parseMessage] 开始解析消息: Object
+index.ts:568 [parseMessage] 设置根组件ID: column-container 清空 hydrateNodes
+index.ts:577 [parseMessage] 处理 surfaceUpdate，组件数量: 4
+index.ts:684 [parseSurfaceUpdate] 开始解析 surfaceUpdate，组件数量: 4
+index.ts:690 [parseSurfaceUpdate] 处理组件: column-container 类型: Column
+index.ts:694 [parseSurfaceUpdate] 组件: column-container 的 children: Array(3)
+index.ts:505 [renderComponent] 开始渲染组件: Object
+index.ts:514 [renderComponent] renderMap: Object
+index.ts:523 [renderComponent] 组件名称: Column 组件属性: Object
+index.ts:527 [renderComponent] 渲染结果: Object
+index.ts:690 [parseSurfaceUpdate] 处理组件: text-1 类型: Text
+index.ts:694 [parseSurfaceUpdate] 组件: text-1 的 children: undefined
+index.ts:505 [renderComponent] 开始渲染组件: Object
+index.ts:514 [renderComponent] renderMap: Object
+index.ts:523 [renderComponent] 组件名称: Text 组件属性: Object
+index.ts:527 [renderComponent] 渲染结果: Object
+index.ts:690 [parseSurfaceUpdate] 处理组件: text-2 类型: Text
+index.ts:694 [parseSurfaceUpdate] 组件: text-2 的 children: undefined
+index.ts:505 [renderComponent] 开始渲染组件: Object
+index.ts:514 [renderComponent] renderMap: Object
+index.ts:523 [renderComponent] 组件名称: Text 组件属性: Object
+index.ts:527 [renderComponent] 渲染结果: Object
+index.ts:690 [parseSurfaceUpdate] 处理组件: text-3 类型: Text
+index.ts:694 [parseSurfaceUpdate] 组件: text-3 的 children: undefined
+index.ts:505 [renderComponent] 开始渲染组件: Object
+index.ts:514 [renderComponent] renderMap: Object
+index.ts:523 [renderComponent] 组件名称: Text 组件属性: Object
+index.ts:527 [renderComponent] 渲染结果: Object
+index.ts:580 [parseMessage] 添加 hydrateNodes: Array(4)
+index.ts:582 [parseMessage] 当前所有 hydrateNodes: Array(4)
+index.ts:610 [parseMessage] 调用 triggerRender
+index.ts:474 [A2UIParser] 触发渲染检查，根组件ID: column-container 组件数量: 4
+index.ts:475 [A2UIParser] renderCallback 是否存在: true
+index.ts:485 [A2UIParser] 根节点是否存在: true
+index.ts:486 [A2UIParser] 根节点 _vnode 是否存在: true
+index.ts:487 [A2UIParser] 根节点 _vnode 是否是有效的 React Element: true
+index.ts:489 [A2UIParser] 开始构建组件树
+index.ts:757 [treeBuild] 开始构建组件树，节点数量: 4
+index.ts:758 [treeBuild] rootComponentId: column-container
+index.ts:769 [treeBuild] 组件映射构建完成，组件ID列表: Array(4)
+index.ts:882 [treeBuild] 根节点 ID: column-container
+index.ts:773 [treeBuild] 处理节点: column-container, 深度: 0
+index.ts:774 [treeBuild] 节点 column-container 的 _vnode: Object
+index.ts:775 [treeBuild] 节点 column-container 的 children: Array(3)
+index.ts:803 [treeBuild] 为节点 column-container 添加 id 属性
+index.ts:773 [treeBuild] 处理节点: text-1, 深度: 1
+index.ts:774 [treeBuild] 节点 text-1 的 _vnode: Object
+index.ts:775 [treeBuild] 节点 text-1 的 children: undefined
+index.ts:803 [treeBuild] 为节点 text-1 添加 id 属性
+index.ts:807 [treeBuild] 节点 text-1 没有子节点，返回
+index.ts:811 [treeBuild] 节点 text-1 的 currentProps.children: undefined
+index.ts:812 [treeBuild] 节点 text-1 的 currentProps.children 类型: undefined
+index.ts:813 [treeBuild] 节点 text-1 的 currentProps.children 是否是数组: false
+index.ts:814 [treeBuild] 节点 text-1 的 currentProps.children 是否是对象: undefined
+index.ts:773 [treeBuild] 处理节点: text-2, 深度: 1
+index.ts:774 [treeBuild] 节点 text-2 的 _vnode: Object
+index.ts:775 [treeBuild] 节点 text-2 的 children: undefined
+index.ts:803 [treeBuild] 为节点 text-2 添加 id 属性
+index.ts:807 [treeBuild] 节点 text-2 没有子节点，返回
+index.ts:811 [treeBuild] 节点 text-2 的 currentProps.children: undefined
+index.ts:812 [treeBuild] 节点 text-2 的 currentProps.children 类型: undefined
+index.ts:813 [treeBuild] 节点 text-2 的 currentProps.children 是否是数组: false
+index.ts:814 [treeBuild] 节点 text-2 的 currentProps.children 是否是对象: undefined
+index.ts:773 [treeBuild] 处理节点: text-3, 深度: 1
+index.ts:774 [treeBuild] 节点 text-3 的 _vnode: Object
+index.ts:775 [treeBuild] 节点 text-3 的 children: undefined
+index.ts:803 [treeBuild] 为节点 text-3 添加 id 属性
+index.ts:807 [treeBuild] 节点 text-3 没有子节点，返回
+index.ts:811 [treeBuild] 节点 text-3 的 currentProps.children: undefined
+index.ts:812 [treeBuild] 节点 text-3 的 currentProps.children 类型: undefined
+index.ts:813 [treeBuild] 节点 text-3 的 currentProps.children 是否是数组: false
+index.ts:814 [treeBuild] 节点 text-3 的 currentProps.children 是否是对象: undefined
+index.ts:834 [treeBuild] 节点 column-container 的子节点数量: 3
+index.ts:837 [treeBuild] 节点 column-container 的 _vnode 是有效的 React Element
+index.ts:842 [treeBuild] 节点 column-container 的原始 props: Object
+index.ts:846 [treeBuild] 节点 column-container 删除 children.explicitList
+index.ts:865 [treeBuild] 节点 column-container 的新 props: Object
+index.ts:866 [treeBuild] 节点 column-container 的子元素: Array(3)
+index.ts:869 [treeBuild] 节点 column-container cloneElement 后的 _vnode: Object
+index.ts:887 [treeBuild] 构建完成，根节点的 _vnode: Object
+index.ts:491 [A2UIParser] 构建完成，rootVNode 是否存在: true
+index.ts:493 [A2UIParser] 调用 renderCallback
+App.tsx:134 [App] onRender 被调用，rootVNode: Object
+App.tsx:162 [App] 解析后 selectedMockData: {
+  "beginRendering": {
+    "surfaceId": "surface-001",
+    "root": "column-container"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-001",
+    "components": [
+      {
+        "id": "column-container",
+        "component": {
+          "Column": {
+            "children": {},
+            "distribution": "start",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "text-1",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "First Text Component"
+            },
+            "usageHint": "h1"
+          }
+        }
+      },
+      {
+        "id": "text-2",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Second Text Component"
+            },
+            "usageHint": "h2"
+          }
+        }
+      },
+      {
+        "id": "text-3",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Third Text Component"
+            },
+            "usageHint": "h3"
+          }
+        }
+      }
+    ]
+  }
+}
+App.tsx:126 [App] useEffect 被执行
+App.tsx:159 [App] 解析 beginRendering 消息
+App.tsx:160 [App] selectedMockData: {
+  "beginRendering": {
+    "surfaceId": "surface-001",
+    "root": "column-container"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-001",
+    "components": [
+      {
+        "id": "column-container",
+        "component": {
+          "Column": {
+            "children": {},
+            "distribution": "start",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "text-1",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "First Text Component"
+            },
+            "usageHint": "h1"
+          }
+        }
+      },
+      {
+        "id": "text-2",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Second Text Component"
+            },
+            "usageHint": "h2"
+          }
+        }
+      },
+      {
+        "id": "text-3",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Third Text Component"
+            },
+            "usageHint": "h3"
+          }
+        }
+      }
+    ]
+  }
+}
+index.ts:549 [parseMessage] 开始解析消息: Object
+index.ts:568 [parseMessage] 设置根组件ID: column-container 清空 hydrateNodes
+index.ts:577 [parseMessage] 处理 surfaceUpdate，组件数量: 4
+index.ts:684 [parseSurfaceUpdate] 开始解析 surfaceUpdate，组件数量: 4
+index.ts:690 [parseSurfaceUpdate] 处理组件: column-container 类型: Column
+index.ts:694 [parseSurfaceUpdate] 组件: column-container 的 children: undefined
+index.ts:505 [renderComponent] 开始渲染组件: Object
+index.ts:514 [renderComponent] renderMap: Object
+index.ts:523 [renderComponent] 组件名称: Column 组件属性: Object
+index.ts:527 [renderComponent] 渲染结果: Object
+index.ts:690 [parseSurfaceUpdate] 处理组件: text-1 类型: Text
+index.ts:694 [parseSurfaceUpdate] 组件: text-1 的 children: undefined
+index.ts:505 [renderComponent] 开始渲染组件: Object
+index.ts:514 [renderComponent] renderMap: Object
+index.ts:523 [renderComponent] 组件名称: Text 组件属性: Object
+index.ts:527 [renderComponent] 渲染结果: Object
+index.ts:690 [parseSurfaceUpdate] 处理组件: text-2 类型: Text
+index.ts:694 [parseSurfaceUpdate] 组件: text-2 的 children: undefined
+index.ts:505 [renderComponent] 开始渲染组件: Object
+index.ts:514 [renderComponent] renderMap: Object
+index.ts:523 [renderComponent] 组件名称: Text 组件属性: Object
+index.ts:527 [renderComponent] 渲染结果: Object
+index.ts:690 [parseSurfaceUpdate] 处理组件: text-3 类型: Text
+index.ts:694 [parseSurfaceUpdate] 组件: text-3 的 children: undefined
+index.ts:505 [renderComponent] 开始渲染组件: Object
+index.ts:514 [renderComponent] renderMap: Object
+index.ts:523 [renderComponent] 组件名称: Text 组件属性: Object
+index.ts:527 [renderComponent] 渲染结果: Object
+index.ts:580 [parseMessage] 添加 hydrateNodes: Array(4)
+index.ts:582 [parseMessage] 当前所有 hydrateNodes: Array(4)
+index.ts:610 [parseMessage] 调用 triggerRender
+index.ts:474 [A2UIParser] 触发渲染检查，根组件ID: column-container 组件数量: 4
+index.ts:475 [A2UIParser] renderCallback 是否存在: true
+index.ts:485 [A2UIParser] 根节点是否存在: true
+index.ts:486 [A2UIParser] 根节点 _vnode 是否存在: true
+index.ts:487 [A2UIParser] 根节点 _vnode 是否是有效的 React Element: true
+index.ts:489 [A2UIParser] 开始构建组件树
+index.ts:757 [treeBuild] 开始构建组件树，节点数量: 4
+index.ts:758 [treeBuild] rootComponentId: column-container
+index.ts:769 [treeBuild] 组件映射构建完成，组件ID列表: Array(4)
+index.ts:882 [treeBuild] 根节点 ID: column-container
+index.ts:773 [treeBuild] 处理节点: column-container, 深度: 0
+index.ts:774 [treeBuild] 节点 column-container 的 _vnode: Object
+index.ts:775 [treeBuild] 节点 column-container 的 children: undefined
+index.ts:803 [treeBuild] 为节点 column-container 添加 id 属性
+index.ts:807 [treeBuild] 节点 column-container 没有子节点，返回
+index.ts:811 [treeBuild] 节点 column-container 的 currentProps.children: Object
+index.ts:812 [treeBuild] 节点 column-container 的 currentProps.children 类型: object
+index.ts:813 [treeBuild] 节点 column-container 的 currentProps.children 是否是数组: false
+index.ts:814 [treeBuild] 节点 column-container 的 currentProps.children 是否是对象: true
+index.ts:816 [treeBuild] 节点 column-container 删除对象类型的 children
+index.ts:887 [treeBuild] 构建完成，根节点的 _vnode: Object
+index.ts:491 [A2UIParser] 构建完成，rootVNode 是否存在: true
+index.ts:493 [A2UIParser] 调用 renderCallback
+App.tsx:134 [App] onRender 被调用，rootVNode: Object
+App.tsx:162 [App] 解析后 selectedMockData: {
+  "beginRendering": {
+    "surfaceId": "surface-001",
+    "root": "column-container"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-001",
+    "components": [
+      {
+        "id": "column-container",
+        "component": {
+          "Column": {
+            "children": {},
+            "distribution": "start",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "text-1",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "First Text Component"
+            },
+            "usageHint": "h1"
+          }
+        }
+      },
+      {
+        "id": "text-2",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Second Text Component"
+            },
+            "usageHint": "h2"
+          }
+        }
+      },
+      {
+        "id": "text-3",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Third Text Component"
+            },
+            "usageHint": "h3"
+          }
+        }
+      }
+    ]
+  }
+}

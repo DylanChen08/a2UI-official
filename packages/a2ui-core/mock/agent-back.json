@@ -1,0 +1,111 @@
+{
+  "beginRendering": {
+    "surfaceId": "dish-card-surface",
+    "root": "dish-card"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "dish-card-surface",
+    "components": [
+      {
+        "id": "dish-card",
+        "component": {
+          "Card": {
+            "child": "card-content"
+          }
+        }
+      },
+      {
+        "id": "card-content",
+        "component": {
+          "Column": {
+            "children": {
+              "explicitList": ["dish-image", "dish-info", "action-row"]
+            },
+            "alignment": "start"
+          }
+        }
+      },
+      {
+        "id": "dish-image",
+        "component": {
+          "Image": {
+            "url": {
+              "literalString": "https://example.com/dish.jpg"
+            },
+            "usageHint": "mediumFeature",
+            "fit": "cover"
+          }
+        }
+      },
+      {
+        "id": "dish-info",
+        "component": {
+          "Column": {
+            "children": {
+              "explicitList": ["dish-name", "dish-desc", "dish-price"]
+            },
+            "alignment": "start"
+          }
+        }
+      },
+      {
+        "id": "dish-name",
+        "component": {
+          "Text": {
+            "text": { "literalString": "宫保鸡丁" },
+            "usageHint": "h3"
+          }
+        }
+      },
+      {
+        "id": "dish-desc",
+        "component": {
+          "Text": {
+            "text": { "literalString": "经典川菜，鸡肉鲜嫩，花生香脆" },
+            "usageHint": "body"
+          }
+        }
+      },
+      {
+        "id": "dish-price",
+        "component": {
+          "Text": {
+            "text": { "literalString": "¥38" },
+            "usageHint": "h4"
+          }
+        }
+      },
+      {
+        "id": "action-row",
+        "component": {
+          "Row": {
+            "children": { "explicitList": ["add-btn"] },
+            "distribution": "end",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "add-btn",
+        "component": {
+          "Button": {
+            "child": "add-btn-text",
+            "primary": true,
+            "action": {
+              "name": "addToCart",
+              "context": [
+                { "key": "dishId", "value": { "literalString": "dish-001" } }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": "add-btn-text",
+        "component": {
+          "Text": { "text": { "literalString": "加入购物车" } }
+        }
+      }
+    ]
+  }
+}

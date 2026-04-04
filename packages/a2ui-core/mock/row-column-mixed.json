@@ -1,0 +1,200 @@
+{
+  "beginRendering": {
+    "surfaceId": "surface-001",
+    "root": "root-column"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-001",
+    "components": [
+      {
+        "id": "root-column",
+        "component": {
+          "Column": {
+            "children": {
+              "explicitList": [
+                "main-title",
+                "top-row",
+                "middle-column",
+                "bottom-row"
+              ]
+            },
+            "distribution": "start",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "main-title",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Main Title - Level 1"
+            },
+            "usageHint": "h1"
+          }
+        }
+      },
+      {
+        "id": "top-row",
+        "component": {
+          "Row": {
+            "children": {
+              "explicitList": [
+                "row-text-1",
+                "row-text-2",
+                "row-text-3"
+              ]
+            },
+            "distribution": "spaceBetween",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "row-text-1",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Row Text 1"
+            },
+            "usageHint": "h3"
+          }
+        }
+      },
+      {
+        "id": "row-text-2",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Row Text 2"
+            },
+            "usageHint": "h3"
+          }
+        }
+      },
+      {
+        "id": "row-text-3",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Row Text 3"
+            },
+            "usageHint": "h3"
+          }
+        }
+      },
+      {
+        "id": "middle-column",
+        "component": {
+          "Column": {
+            "children": {
+              "explicitList": [
+                "sub-title",
+                "nested-row",
+                "column-text"
+              ]
+            },
+            "distribution": "start",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "sub-title",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Sub Title - Level 2"
+            },
+            "usageHint": "h2"
+          }
+        }
+      },
+      {
+        "id": "nested-row",
+        "component": {
+          "Row": {
+            "children": {
+              "explicitList": [
+                "nested-text-1",
+                "nested-text-2"
+              ]
+            },
+            "distribution": "spaceAround",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "nested-text-1",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Nested Row Text 1"
+            },
+            "usageHint": "body"
+          }
+        }
+      },
+      {
+        "id": "nested-text-2",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Nested Row Text 2"
+            },
+            "usageHint": "body"
+          }
+        }
+      },
+      {
+        "id": "column-text",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Column Text - Level 3"
+            },
+            "usageHint": "h3"
+          }
+        }
+      },
+      {
+        "id": "bottom-row",
+        "component": {
+          "Row": {
+            "children": {
+              "explicitList": [
+                "bottom-text-1",
+                "bottom-text-2"
+              ]
+            },
+            "distribution": "center",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "bottom-text-1",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Bottom Row Text 1"
+            },
+            "usageHint": "h3"
+          }
+        }
+      },
+      {
+        "id": "bottom-text-2",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "Bottom Row Text 2"
+            },
+            "usageHint": "h3"
+          }
+        }
+      }
+    ]
+  }
+}

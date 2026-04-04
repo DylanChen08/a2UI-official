@@ -1,0 +1,99 @@
+{
+  "beginRendering": {
+    "surfaceId": "surface-001",
+    "root": "card-container"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-001",
+    "components": [
+      {
+        "id": "card-container",
+        "component": {
+          "Row": {
+            "children": {
+              "explicitList": [
+                "card-1",
+                "card-2"
+              ]
+            },
+            "distribution": "space-around",
+            "alignment": "top"
+          }
+        }
+      },
+      {
+        "id": "card-1",
+        "component": {
+          "Card": {
+            "title": {
+              "literalString": "Card Title 1"
+            },
+            "subtitle": {
+              "literalString": "Card Subtitle 1"
+            },
+            "children": {
+              "explicitList": [
+                "card-1-text"
+              ]
+            },
+            "elevation": 2
+          }
+        }
+      },
+      {
+        "id": "card-1-text",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "This is the content of Card 1. It can contain multiple elements like text, buttons, images, etc."
+            },
+            "usageHint": "body"
+          }
+        }
+      },
+      {
+        "id": "card-2",
+        "component": {
+          "Card": {
+            "title": {
+              "literalString": "Card Title 2"
+            },
+            "subtitle": {
+              "literalString": "Card Subtitle 2"
+            },
+            "children": {
+              "explicitList": [
+                "card-2-text",
+                "card-2-button"
+              ]
+            },
+            "elevation": 4
+          }
+        }
+      },
+      {
+        "id": "card-2-text",
+        "component": {
+          "Text": {
+            "text": {
+              "literalString": "This is the content of Card 2. It has a higher elevation than Card 1."
+            },
+            "usageHint": "body"
+          }
+        }
+      },
+      {
+        "id": "card-2-button",
+        "component": {
+          "Button": {
+            "text": {
+              "literalString": "Click Me"
+            },
+            "variant": "primary",
+            "size": "small"
+          }
+        }
+      }
+    ]
+  }
+}

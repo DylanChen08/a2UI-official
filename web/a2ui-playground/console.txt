@@ -1,0 +1,141 @@
+index.ts:86 [JSONLBuffer] 接收到数据: {"beginRendering":{"surfaceId":"surface-001","root
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"beginRendering":{"surfaceId":"surface-001","root
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"beginRendering":{"surfaceId":"surface-001","root
+index.ts:307 [JSONLBuffer] 括号计数: 2 是否完整: false
+index.ts:158 [JSONLBuffer] JSON 不完整，等待更多数据
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"beginRendering":{"surfaceId":"surface-001","root
+index.ts:86 [JSONLBuffer] 接收到数据: ":"column-container"}}
+{"surfaceUpdate":{"surfaceI
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"beginRendering":{"surfaceId":"surface-001","root":"column-container"}}
+{"surfaceUpdate":{"surfaceI
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"beginRendering":{"surfaceId":"surface-001","root":"column-container"}}
+{"surfaceUpdate":{"surfaceI
+index.ts:130 [JSONLBuffer] 检测到多行，行数: 2
+index.ts:134 [JSONLBuffer] 处理完整行: {"beginRendering":{"surfaceId":"surface-001","root":"column-container"}}
+index.ts:327 [JSONLBuffer] 解析到消息: {beginRendering: {…}}
+index.ts:339 [JSONLBuffer] 直接处理消息: {beginRendering: {…}}
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceI
+index.ts:307 [JSONLBuffer] 括号计数: 2 是否完整: false
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:169 [JSONLBuffer] 未找到 components 数组开始（可能还在传输中）
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"surfaceUpdate":{"surfaceI
+index.ts:86 [JSONLBuffer] 接收到数据: d":"surface-001","components":[{"id":"column-conta
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[{"id":"column-conta
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[{"id":"column-conta
+index.ts:307 [JSONLBuffer] 括号计数: 3 是否完整: false
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:181 [JSONLBuffer] 提取到 surfaceId: surface-001
+index.ts:184 [JSONLBuffer] components 内容: {"id":"column-conta
+index.ts:213 [JSONLBuffer] 找到组件开始位置: 0
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[{"id":"column-conta
+index.ts:86 [JSONLBuffer] 接收到数据: iner","component":{"Column":{"children":{"explicit
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[{"id":"column-container","component":{"Column":{"children":{"explicit
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[{"id":"column-container","component":{"Column":{"children":{"explicit
+index.ts:307 [JSONLBuffer] 括号计数: 6 是否完整: false
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:181 [JSONLBuffer] 提取到 surfaceId: surface-001
+index.ts:184 [JSONLBuffer] components 内容: {"id":"column-container","component":{"Column":{"children":{"explicit
+index.ts:213 [JSONLBuffer] 找到组件开始位置: 0
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[{"id":"column-container","component":{"Column":{"children":{"explicit
+index.ts:86 [JSONLBuffer] 接收到数据: List":["text-1","text-2","text-3"]},"distribution"
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[{"id":"column-container","component":{"Column":{"children":{"explicitList":["text-1","text-2","text-3"]},"distribution"
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[{"id":"column-container","component":{"Column":{"children":{"explicitList":["text-1","text-2","text-3"]},"distribution"
+index.ts:307 [JSONLBuffer] 括号计数: 5 是否完整: false
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:181 [JSONLBuffer] 提取到 surfaceId: surface-001
+index.ts:184 [JSONLBuffer] components 内容: {"id":"column-container","component":{"Column":{"children":{"explicitList":["text-1","text-2","text-3"]},"distribution"
+index.ts:213 [JSONLBuffer] 找到组件开始位置: 0
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[{"id":"column-container","component":{"Column":{"children":{"explicitList":["text-1","text-2","text-3"]},"distribution"
+index.ts:86 [JSONLBuffer] 接收到数据: :"start","alignment":"center"}}},{"id":"text-1","c
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[{"id":"column-container","component":{"Column":{"children":{"explicitList":["text-1","text-2","text-3"]},"distribution":"start","alignment":"center"}}},{"id":"text-1","c
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[{"id":"column-container","component":{"Column":{"children":{"explicitList":["text-1","text-2","text-3"]},"distribution":"start","alignment":"center"}}},{"id":"text-1","c
+index.ts:307 [JSONLBuffer] 括号计数: 3 是否完整: false
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:181 [JSONLBuffer] 提取到 surfaceId: surface-001
+index.ts:184 [JSONLBuffer] components 内容: {"id":"column-container","component":{"Column":{"children":{"explicitList":["text-1","text-2","text-3"]},"distribution":"start","alignment":"center"}}},{"id":"text-1","c
+index.ts:213 [JSONLBuffer] 找到组件开始位置: 0
+index.ts:220 [JSONLBuffer] 找到组件结束位置: 151
+index.ts:230 [JSONLBuffer] 提取到完整组件: {"id":"column-container","component":{"Column":{"children":{"explicitList":["text-1","text-2","text-3"]},"distribution":"start","alignment":"center"}}}
+index.ts:234 [JSONLBuffer] 解析组件成功: {id: 'column-container', component: {…}}
+index.ts:243 [JSONLBuffer] 创建独立的 surfaceUpdate 消息: {surfaceUpdate: {…}}
+index.ts:250 [JSONLBuffer] 更新缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","c
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","c
+index.ts:307 [JSONLBuffer] 括号计数: 3 是否完整: false
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:181 [JSONLBuffer] 提取到 surfaceId: surface-001
+index.ts:184 [JSONLBuffer] components 内容: ,{"id":"text-1","c
+index.ts:213 [JSONLBuffer] 找到组件开始位置: 1
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","c
+index.ts:86 [JSONLBuffer] 接收到数据: omponent":{"Text":{"text":{"literalString":"First 
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First 
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First
+index.ts:307 [JSONLBuffer] 括号计数: 6 是否完整: false
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:181 [JSONLBuffer] 提取到 surfaceId: surface-001
+index.ts:184 [JSONLBuffer] components 内容: ,{"id":"text-1","component":{"Text":{"text":{"literalString":"First
+index.ts:213 [JSONLBuffer] 找到组件开始位置: 1
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First 
+index.ts:86 [JSONLBuffer] 接收到数据: Text Component"},"usageHint":"h1"}}},{"id":"text-2
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2
+index.ts:307 [JSONLBuffer] 括号计数: 3 是否完整: false
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:181 [JSONLBuffer] 提取到 surfaceId: surface-001
+index.ts:184 [JSONLBuffer] components 内容: ,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2
+index.ts:213 [JSONLBuffer] 找到组件开始位置: 1
+index.ts:220 [JSONLBuffer] 找到组件结束位置: 104
+index.ts:230 [JSONLBuffer] 提取到完整组件: ,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}}
+index.ts:254 [JSONLBuffer] 解析组件失败: Unexpected token ',', ",{"id":"te"... is not valid JSON
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2
+index.ts:86 [JSONLBuffer] 接收到数据: ","component":{"Text":{"text":{"literalString":"Se
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Se
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Se
+index.ts:307 [JSONLBuffer] 括号计数: 6 是否完整: false
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:181 [JSONLBuffer] 提取到 surfaceId: surface-001
+index.ts:184 [JSONLBuffer] components 内容: ,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Se
+index.ts:213 [JSONLBuffer] 找到组件开始位置: 1
+index.ts:220 [JSONLBuffer] 找到组件结束位置: 104
+index.ts:230 [JSONLBuffer] 提取到完整组件: ,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}}
+index.ts:254 [JSONLBuffer] 解析组件失败: Unexpected token ',', ",{"id":"te"... is not valid JSON
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Se
+index.ts:86 [JSONLBuffer] 接收到数据: cond Text Component"},"usageHint":"h2"}}},{"id":"t
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"t
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"t
+index.ts:307 [JSONLBuffer] 括号计数: 3 是否完整: false
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:181 [JSONLBuffer] 提取到 surfaceId: surface-001
+index.ts:184 [JSONLBuffer] components 内容: ,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"t
+index.ts:213 [JSONLBuffer] 找到组件开始位置: 1
+index.ts:220 [JSONLBuffer] 找到组件结束位置: 104
+index.ts:230 [JSONLBuffer] 提取到完整组件: ,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}}
+index.ts:254 [JSONLBuffer] 解析组件失败: Unexpected token ',', ",{"id":"te"... is not valid JSON
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"t
+index.ts:86 [JSONLBuffer] 接收到数据: ext-3","component":{"Text":{"text":{"literalString
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"text-3","component":{"Text":{"text":{"literalString
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"text-3","component":{"Text":{"text":{"literalString
+index.ts:307 [JSONLBuffer] 括号计数: 6 是否完整: false
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:181 [JSONLBuffer] 提取到 surfaceId: surface-001
+index.ts:184 [JSONLBuffer] components 内容: ,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"text-3","component":{"Text":{"text":{"literalString
+index.ts:213 [JSONLBuffer] 找到组件开始位置: 1
+index.ts:220 [JSONLBuffer] 找到组件结束位置: 104
+index.ts:230 [JSONLBuffer] 提取到完整组件: ,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}}
+index.ts:254 [JSONLBuffer] 解析组件失败: Unexpected token ',', ",{"id":"te"... is not valid JSON
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"text-3","component":{"Text":{"text":{"literalString
+index.ts:86 [JSONLBuffer] 接收到数据: ":"Third Text Component"},"usageHint":"h3"}}}]}}
+
+index.ts:106 [JSONLBuffer] 开始处理缓冲区，当前缓冲区内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"text-3","component":{"Text":{"text":{"literalString":"Third Text Component"},"usageHint":"h3"}}}]}}
+
+index.ts:123 [JSONLBuffer] 尝试提取完整消息，缓冲区: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"text-3","component":{"Text":{"text":{"literalString":"Third Text Component"},"usageHint":"h3"}}}]}}
+index.ts:307 [JSONLBuffer] 括号计数: 0 是否完整: true
+index.ts:318 [JSONLBuffer] JSON 解析失败: Unexpected token ',', ..."ponents":[,{"id":"te"... is not valid JSON
+index.ts:164 [JSONLBuffer] 尝试从 surfaceUpdate 中提取 surfaceId 和组件
+index.ts:181 [JSONLBuffer] 提取到 surfaceId: surface-001
+index.ts:184 [JSONLBuffer] components 内容: ,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"text-3","component":{"Text":{"text":{"literalString":"Third Text Component"},"usageHint":"h3"}}}]}}
+index.ts:213 [JSONLBuffer] 找到组件开始位置: 1
+index.ts:220 [JSONLBuffer] 找到组件结束位置: 104
+index.ts:230 [JSONLBuffer] 提取到完整组件: ,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}}
+index.ts:254 [JSONLBuffer] 解析组件失败: Unexpected token ',', ",{"id":"te"... is not valid JSON
+index.ts:113 [JSONLBuffer] 缓冲区处理完成，剩余内容: {"surfaceUpdate":{"surfaceId":"surface-001","components":[,{"id":"text-1","component":{"Text":{"text":{"literalString":"First Text Component"},"usageHint":"h1"}}},{"id":"text-2","component":{"Text":{"text":{"literalString":"Second Text Component"},"usageHint":"h2"}}},{"id":"text-3","component":{"Text":{"text":{"literalString":"Third Text Component"},"usageHint":"h3"}}}]}}
+

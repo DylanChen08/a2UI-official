@@ -1,0 +1,60 @@
+{
+  "beginRendering": {
+    "surfaceId": "surface-list",
+    "root": "root-list"
+  },
+  "dataModelUpdate": {
+    "surfaceId": "surface-list",
+    "path": "/",
+    "contents": [
+      {
+        "key": "items",
+        "valueMap": [
+          {
+            "key": "0",
+            "valueMap": [{ "key": "label", "valueString": "Item A" }]
+          },
+          {
+            "key": "1",
+            "valueMap": [{ "key": "label", "valueString": "Item B" }]
+          },
+          {
+            "key": "2",
+            "valueMap": [{ "key": "label", "valueString": "Item C" }]
+          }
+        ]
+      }
+    ]
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-list",
+    "components": [
+      {
+        "id": "root-list",
+        "component": {
+          "List": {
+            "children": {
+              "template": {
+                "componentId": "item-text-tpl",
+                "dataBinding": "/items"
+              }
+            },
+            "direction": "vertical",
+            "alignment": "start"
+          }
+        }
+      },
+      {
+        "id": "item-text-tpl",
+        "component": {
+          "Text": {
+            "text": {
+              "path": "label",
+              "literalString": "—"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

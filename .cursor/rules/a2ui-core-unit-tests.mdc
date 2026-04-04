@@ -1,0 +1,33 @@
+---
+description: 仅 a2ui-core 改动需跑单元测试；其它包无此强制要求
+globs: packages/a2ui-core/**/*
+alwaysApply: false
+---
+
+# a2ui-core 单元测试门禁
+
+## 适用范围
+
+- **需要跑单元测试**：仅当本次任务 **改动了 `packages/a2ui-core`**（含 `src/`、`test/`、`mock/`、包内配置等）时，在收尾前 **必须** 执行 `a2ui-core` 的测试并全部通过。
+- **不需要因本规则跑 a2ui-core 测试**：改动仅发生在其它包或目录时（例如 `web/a2ui-playground`、`packages/a2ui-react`、`server/` 等），**不**强制跑 `pnpm -F a2ui-core test`，除非同时修改了 `a2ui-core`。
+
+若一次改动 **同时触及 a2ui-core 与其它目录**，仍须跑通 `a2ui-core` 测试。
+
+## 执行方式
+
+在仓库根目录：
+
+```bash
+pnpm -F a2ui-core test
+```
+
+或在 `packages/a2ui-core` 下：
+
+```bash
+pnpm test
+```
+
+## 要求
+
+- 在适用范围内若测试失败：先修复代码或测试，再提交/收尾；不要留下未通过的测试。
+- 改动 a2ui-core 时，即使只是类型/导出等，默认仍应跑通上述测试。

@@ -1,0 +1,76 @@
+{
+  "beginRendering": {
+    "surfaceId": "surface-001",
+    "root": "button-container"
+  },
+  "surfaceUpdate": {
+    "surfaceId": "surface-001",
+    "components": [
+      {
+        "id": "button-container",
+        "component": {
+          "Column": {
+            "children": {
+              "explicitList": [
+                "button-primary",
+                "button-secondary",
+                "button-outline",
+                "button-text"
+              ]
+            },
+            "distribution": "start",
+            "alignment": "center"
+          }
+        }
+      },
+      {
+        "id": "button-primary",
+        "component": {
+          "Button": {
+            "text": {
+              "literalString": "Primary Button"
+            },
+            "variant": "primary",
+            "size": "medium"
+          }
+        }
+      },
+      {
+        "id": "button-secondary",
+        "component": {
+          "Button": {
+            "text": {
+              "literalString": "Secondary Button"
+            },
+            "variant": "secondary",
+            "size": "medium"
+          }
+        }
+      },
+      {
+        "id": "button-outline",
+        "component": {
+          "Button": {
+            "text": {
+              "literalString": "Outline Button"
+            },
+            "variant": "outline",
+            "size": "medium"
+          }
+        }
+      },
+      {
+        "id": "button-text",
+        "component": {
+          "Button": {
+            "text": {
+              "literalString": "Text Button"
+            },
+            "variant": "text",
+            "size": "medium"
+          }
+        }
+      }
+    ]
+  }
+}
