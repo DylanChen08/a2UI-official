@@ -9,6 +9,8 @@ import { llmA2uiAgentEventStream } from '../agent/llmA2uiAgentStream';
 import { loadA2uiMockJson } from '../loadA2uiMock';
 import { getOpenAiCompatibleClient } from '../provider';
 import { a2uiAgentDbg, a2uiAgentInfo } from '../debug/a2uiAgentLog';
+import type { A2uiAgentToolDef } from '../agent/defaultA2uiTools';
+import { mergeA2uiAgentTools } from '../agent/mergeA2uiTools';
 
 /** 默认使用 SSE；`sse=0|false|no|off|json` 时改为一次性 JSON（`{ events }`）。 */
 function useSseFromQuery(ctx: Context): boolean {
@@ -22,14 +24,22 @@ function useSseFromQuery(ctx: Context): boolean {
 
 function normalizeRunAgentBody(body: unknown): Record<string, unknown> {
   if (!body || typeof body !== 'object') {
-    return { tools: [], context: [] };
+    return { tools: mergeAgentToolsMaybe([]), context: [] };
   }
   const b = body as Record<string, unknown>;
+  const clientTools = Array.isArray(b.tools) ? b.tools : [];
   return {
     ...b,
-    tools: Array.isArray(b.tools) ? b.tools : [],
+    tools: mergeAgentToolsMaybe(clientTools),
     context: Array.isArray(b.context) ? b.context : []
   };
+}
+
+/** 合并内置 get_antd_icons；`A2UI_AGENT_ICONS_TOOL=0` 时关闭注入。 */
+function mergeAgentToolsMaybe(clientTools: unknown[]): unknown[] {
+  const disable = process.env.A2UI_AGENT_ICONS_TOOL?.trim() === '0';
+  if (disable) return clientTools;
+  return mergeA2uiAgentTools(clientTools as A2uiAgentToolDef[]);
 }
 
 /** 未配置 LLM、或 AGENT_USE_MOCK=1、或 query mock=1 时使用随机 mock；否则走 LLM + A2UI 中文 system prompt */

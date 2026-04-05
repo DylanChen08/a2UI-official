@@ -28,6 +28,7 @@ export function buildA2uiAgentSystemPrompt(options?: BuildA2uiAgentSystemPromptO
   - **内容不重复**：同一价格、标题、描述不要在多个 \`Text\` 里重复出现（例如信息区已显示价格，底部 \`Row\` 不要再放相同价格的 \`Text\`）；操作区仅需按钮时可只放 \`Button\`。
   - \`surfaceUpdate.components\` 中须包含该 Card 及 \`child\` 指向的内层组件。
 - **Icon.name**、**Image.url**、**Text.text** 须为对象 \`{ "literalString": "..." }\` 或带 \`path\` 的绑定形状，勿写成字符串标量。
+- **Icon（Ant Design Icons）**：Playground 使用 **@ant-design/icons**。\`Icon.name.literalString\` 填 **组件导出名**（PascalCase），如 \`HomeOutlined\`、\`SearchOutlined\`、\`RightOutlined\`；不确定时可 **先调用工具 \`get_antd_icons\`**（支持 \`query\` / \`limit\`）再写入 JSON。旧版 catalog 里的 Material 风格短名（如 \`home\`、\`search\`）宿主会尽量映射，但 **优先使用 Ant Design 名称**。
 - **Button** 按钮文案须用 \`child\` 指向子 **Text** 组件 id，不要用未支持的 \`text\` 内联（若与「(2)」一致则仅 child 路径）。
 - **Button.action.context** 里每项 \`value\` 只能是含 \`literalString\` / \`literalNumber\` / \`literalBoolean\` / \`path\` 的对象；若用 \`path\`，需在消息中提供 **dataModelUpdate** 写入对应路径，否则用字面量。
 

@@ -54,7 +54,8 @@ export const Button: React.FC<ButtonProps> = ({
   children
 }) => {
   const variant =
-    variantProp ?? (primary === false ? 'secondary' : primary === true ? 'primary' : 'primary');
+    variantProp ??
+    (primary === true ? 'primary' : primary === false ? 'secondary' : 'outline');
   const displayText = text?.literalString || text?.path || '';
   const variantStyles: Record<string, React.CSSProperties> = {
     primary: {

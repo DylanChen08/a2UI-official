@@ -6,6 +6,7 @@ loadEnv({ path: path.resolve(__dirname, '../.env') });
 import bodyParser from 'koa-bodyparser';
 import cors from 'koa-cors';
 import { createAgentRouter } from './routes/agent';
+import { createAntdIconsRouter } from './routes/antdIcons';
 import { createChatRouter } from './routes/chat';
 
 const app = new Koa();
@@ -19,9 +20,12 @@ app.use(
 app.use(bodyParser());
 
 const agentRouter = createAgentRouter();
+const antdIconsRouter = createAntdIconsRouter();
 const chatRouter = createChatRouter();
 app.use(agentRouter.routes());
 app.use(agentRouter.allowedMethods());
+app.use(antdIconsRouter.routes());
+app.use(antdIconsRouter.allowedMethods());
 app.use(chatRouter.routes());
 app.use(chatRouter.allowedMethods());
 

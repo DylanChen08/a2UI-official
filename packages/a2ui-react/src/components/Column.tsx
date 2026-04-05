@@ -44,6 +44,11 @@ export const Column: React.FC<ColumnProps> = ({
     return children;
   };
 
+  const distributesMainSpace =
+    distribution === 'spaceBetween' ||
+    distribution === 'spaceAround' ||
+    distribution === 'spaceEvenly';
+
   return (
     <div 
       id={id}
@@ -51,10 +56,16 @@ export const Column: React.FC<ColumnProps> = ({
       style={{
         display: 'flex',
         flexDirection: 'column',
+        flexWrap: 'nowrap',
+        gap: 12,
         justifyContent: justifyContent[distribution],
         alignItems: alignItems[alignment],
+        boxSizing: 'border-box',
         width: '100%',
-        height: '100%'
+        minHeight: 0,
+        ...(distributesMainSpace
+          ? { height: 'fit-content', maxHeight: '100%' }
+          : { height: '100%' })
       }}
     >
       {renderChildren()}

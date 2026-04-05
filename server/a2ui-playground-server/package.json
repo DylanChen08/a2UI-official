@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.1.0",
     "@ag-ui/core": "^0.0.48",
     "@ag-ui/encoder": "^0.0.48",
     "koa": "^2.14.0",

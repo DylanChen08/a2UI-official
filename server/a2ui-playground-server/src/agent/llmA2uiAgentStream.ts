@@ -17,6 +17,7 @@ import {
   logA2uiLlmAssistantRaw,
   logA2uiSystemPromptFull
 } from '../debug/a2uiAgentLog';
+import { executeServerTool } from './executeServerTool';
 
 type RunAgentInput = z.infer<typeof RunAgentInputSchema>;
 
@@ -86,6 +87,23 @@ export function buildOpenAiMessagesForA2uiAgent(
     });
   }
   return out;
+}
+
+function toOpenAiTools(
+  tools: RunAgentInput['tools']
+): OpenAI.Chat.ChatCompletionTool[] {
+  if (!tools?.length) return [];
+  return tools.map((t) => ({
+    type: 'function' as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: (t.parameters ?? { type: 'object', properties: {} }) as Record<
+        string,
+        unknown
+      >
+    }
+  }));
 }
 
 function tryParseJsonObject(s: string): Record<string, unknown> | null {
@@ -185,7 +203,8 @@ export async function* llmA2uiAgentEventStream(
   yield started;
 
   const model = getDefaultChatModel();
-  const messages = buildOpenAiMessagesForA2uiAgent(input);
+  const openAiTools = toOpenAiTools(input.tools);
+  let messages = buildOpenAiMessagesForA2uiAgent(input);
   const sys0 = messages[0];
   if (sys0?.role === 'system' && typeof sys0.content === 'string') {
     logA2uiSystemPromptFull(sys0.content);
@@ -193,20 +212,48 @@ export async function* llmA2uiAgentEventStream(
   a2uiAgentDbg('llm messages built', {
     model,
     openAiMessageCount: messages.length,
+    toolCount: openAiTools.length,
     threadId: input.threadId,
     runId: input.runId
   });
 
-  let raw: string;
+  let raw = '';
   const t0 = Date.now();
+  const maxToolRounds = 6;
   try {
     a2uiAgentInfo('llm request start', { model, threadId: input.threadId, runId: input.runId });
-    const completion = await client.chat.completions.create({
-      model,
-      messages,
-      temperature: 0.1
-    });
-    raw = completion.choices[0]?.message?.content ?? '';
+    for (let round = 0; round < maxToolRounds; round++) {
+      const completion = await client.chat.completions.create({
+        model,
+        messages,
+        ...(openAiTools.length > 0 ? { tools: openAiTools, tool_choice: 'auto' as const } : {}),
+        temperature: 0.1
+      });
+      const choice = completion.choices[0]?.message;
+      if (!choice) {
+        throw new Error('LLM 无有效 message');
+      }
+      const toolCalls = choice.tool_calls;
+      if (toolCalls?.length) {
+        messages.push({
+          role: 'assistant',
+          content: choice.content,
+          tool_calls: toolCalls
+        });
+        for (const tc of toolCalls) {
+          if (tc.type !== 'function') continue;
+          const out = await executeServerTool(tc.function.name, tc.function.arguments ?? '{}');
+          messages.push({ role: 'tool', tool_call_id: tc.id, content: out });
+        }
+        a2uiAgentDbg('llm tool round', { round, toolCallCount: toolCalls.length });
+        continue;
+      }
+      raw = choice.content ?? '';
+      break;
+    }
+    if (!raw.trim()) {
+      throw new Error('LLM 未输出正文（可能仅发起了 tool_calls 而未给出最终 JSON）');
+    }
     const ms = Date.now() - t0;
     logA2uiLlmAssistantRaw(raw, {
       model,

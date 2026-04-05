@@ -52,10 +52,13 @@ export const Row: React.FC<RowProps> = ({
       style={{
         display: 'flex',
         flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 12,
         justifyContent: justifyContent[distribution],
         alignItems: alignItems[alignment],
         width: '100%',
-        height: '100%'
+        minHeight: 0,
+        height: 'auto'
       }}
     >
       {renderChildren()}
