@@ -1,1 +1,0 @@
-{"version":3,"file":"splitCombinedMessage.d.ts","sourceRoot":"","sources":["../../src/a2ui/splitCombinedMessage.ts"],"names":[],"mappings":"AAAA;;;GAGG;AACH,QAAA,MAAM,iBAAiB,kFAKb,CAAC;AAEX,MAAM,MAAM,cAAc,GAAG,CAAC,OAAO,iBAAiB,CAAC,CAAC,MAAM,CAAC,CAAC;AAEhE,wBAAgB,wBAAwB,CACtC,QAAQ,EAAE,MAAM,CAAC,MAAM,EAAE,OAAO,CAAC,GAChC,MAAM,CAAC,MAAM,EAAE,OAAO,CAAC,EAAE,CAQ3B"}

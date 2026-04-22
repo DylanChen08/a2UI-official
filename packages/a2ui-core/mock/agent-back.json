@@ -1,109 +1,96 @@
 {
   "beginRendering": {
-    "surfaceId": "dish-card-surface",
-    "root": "dish-card"
+    "surfaceId": "user-profile-surf",
+    "root": "row-root"
   },
   "surfaceUpdate": {
-    "surfaceId": "dish-card-surface",
+    "surfaceId": "user-profile-surf",
     "components": [
       {
-        "id": "dish-card",
+        "id": "row-root",
         "component": {
-          "Card": {
-            "child": "card-content"
-          }
-        }
-      },
-      {
-        "id": "card-content",
-        "component": {
-          "Column": {
+          "Row": {
             "children": {
-              "explicitList": ["dish-image", "dish-info", "action-row"]
+              "explicitList": [
+                "avatar-img",
+                "info-column"
+              ]
             },
-            "alignment": "start"
+            "alignment": "center",
+            "distribution": "start"
           }
         }
       },
       {
-        "id": "dish-image",
+        "id": "avatar-img",
         "component": {
           "Image": {
             "url": {
-              "literalString": "https://example.com/dish.jpg"
+              "literalString": "https://picsum.photos/96/96"
             },
-            "usageHint": "mediumFeature",
+            "usageHint": "avatar",
             "fit": "cover"
           }
         }
       },
       {
-        "id": "dish-info",
+        "id": "info-column",
         "component": {
           "Column": {
             "children": {
-              "explicitList": ["dish-name", "dish-desc", "dish-price"]
+              "explicitList": [
+                "nickname-text",
+                "email-text",
+                "edit-btn"
+              ]
             },
-            "alignment": "start"
+            "alignment": "start",
+            "distribution": "spaceBetween"
           }
         }
       },
       {
-        "id": "dish-name",
+        "id": "nickname-text",
         "component": {
           "Text": {
-            "text": { "literalString": "宫保鸡丁" },
+            "text": {
+              "literalString": "张三"
+            },
             "usageHint": "h3"
           }
         }
       },
       {
-        "id": "dish-desc",
+        "id": "email-text",
         "component": {
           "Text": {
-            "text": { "literalString": "经典川菜，鸡肉鲜嫩，花生香脆" },
-            "usageHint": "body"
+            "text": {
+              "literalString": "zhangsan@example.com"
+            },
+            "usageHint": "caption"
           }
         }
       },
       {
-        "id": "dish-price",
-        "component": {
-          "Text": {
-            "text": { "literalString": "¥38" },
-            "usageHint": "h4"
-          }
-        }
-      },
-      {
-        "id": "action-row",
-        "component": {
-          "Row": {
-            "children": { "explicitList": ["add-btn"] },
-            "distribution": "end",
-            "alignment": "center"
-          }
-        }
-      },
-      {
-        "id": "add-btn",
+        "id": "edit-btn",
         "component": {
           "Button": {
-            "child": "add-btn-text",
+            "child": "edit-btn-text",
             "primary": true,
             "action": {
-              "name": "addToCart",
-              "context": [
-                { "key": "dishId", "value": { "literalString": "dish-001" } }
-              ]
+              "name": "editProfile"
             }
           }
         }
       },
       {
-        "id": "add-btn-text",
+        "id": "edit-btn-text",
         "component": {
-          "Text": { "text": { "literalString": "加入购物车" } }
+          "Text": {
+            "text": {
+              "literalString": "编辑资料"
+            }
+          }
         }
       }
     ]

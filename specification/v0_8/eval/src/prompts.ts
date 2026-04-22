@@ -490,4 +490,32 @@ Each activity in the inner lists should be a 'Row' containing a 'CheckBox' (to m
       new SurfaceUpdateSchemaMatcher("Text", "text", "Explore Montmartre"),
     ],
   },
+  {
+    name: "statChipHostKpiRow",
+    description:
+      "Host StatChip components in a Card + Row for KPI-style metrics (label/value/accent).",
+    schemaPath,
+    promptText: `Generate a JSON message with only a top-level 'surfaceUpdate' property (single message type).
+The UI must use the hosted custom component 'StatChip' (see catalog): a Card as the layout root (e.g. id kpi-statchip-card), whose child is a Row (e.g. id kpi-statchip-row).
+The Row's children must use explicitList with exactly three StatChip components (ids unique, prefix chip-), not nested Column+Text for the same metrics:
+1) StatChip: label literalString "湿度", value literalString "65%", accent "default".
+2) StatChip: label literalString "紫外线", value literalString "最弱", accent "success".
+3) StatChip: label literalString "气压", value with path "/weather/pressure" and literalString placeholder "—", accent "warning".
+Every StatChip.label and StatChip.value must be objects with literalString and/or path, never a raw string.
+Include beginRendering only if required by your merge format; otherwise surfaceUpdate alone is enough.`,
+    matchers: [
+      new MessageTypeMatcher("surfaceUpdate"),
+      new SurfaceUpdateSchemaMatcher("Card"),
+      new SurfaceUpdateSchemaMatcher("Row"),
+      new SurfaceUpdateSchemaMatcher("StatChip"),
+      new SurfaceUpdateSchemaMatcher("StatChip", "label", "湿度"),
+      new SurfaceUpdateSchemaMatcher("StatChip", "label", "紫外线"),
+      new SurfaceUpdateSchemaMatcher("StatChip", "label", "气压"),
+      new SurfaceUpdateSchemaMatcher("StatChip", "value", "65%"),
+      new SurfaceUpdateSchemaMatcher("StatChip", "value", "最弱"),
+      new SurfaceUpdateSchemaMatcher("StatChip", "accent", "default"),
+      new SurfaceUpdateSchemaMatcher("StatChip", "accent", "success"),
+      new SurfaceUpdateSchemaMatcher("StatChip", "accent", "warning"),
+    ],
+  },
 ];

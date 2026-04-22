@@ -100,6 +100,11 @@
                           "caption",
                           "body"
                         ]
+                      },
+                      "styles": {
+                        "type": "object",
+                        "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+                        "additionalProperties": true
                       }
                     },
                     "required": ["text"]
@@ -143,6 +148,11 @@
                           "largeFeature",
                           "header"
                         ]
+                      },
+                      "styles": {
+                        "type": "object",
+                        "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+                        "additionalProperties": true
                       }
                     },
                     "required": ["url"]
@@ -213,6 +223,11 @@
                             "type": "string"
                           }
                         }
+                      },
+                      "styles": {
+                        "type": "object",
+                        "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+                        "additionalProperties": true
                       }
                     },
                     "required": ["name"]
@@ -317,6 +332,11 @@
                         "type": "string",
                         "description": "Defines the alignment of children along the cross axis (vertically). This corresponds to the CSS 'align-items' property.",
                         "enum": ["start", "center", "end", "stretch"]
+                      },
+                      "styles": {
+                        "type": "object",
+                        "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+                        "additionalProperties": true
                       }
                     },
                     "required": ["children"]
@@ -368,6 +388,11 @@
                         "type": "string",
                         "description": "Defines the alignment of children along the cross axis (horizontally). This corresponds to the CSS 'align-items' property.",
                         "enum": ["center", "end", "start", "stretch"]
+                      },
+                      "styles": {
+                        "type": "object",
+                        "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+                        "additionalProperties": true
                       }
                     },
                     "required": ["children"]
@@ -412,6 +437,11 @@
                         "type": "string",
                         "description": "Defines the alignment of children along the cross axis.",
                         "enum": ["start", "center", "end", "stretch"]
+                      },
+                      "styles": {
+                        "type": "object",
+                        "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+                        "additionalProperties": true
                       }
                     },
                     "required": ["children"]
@@ -423,9 +453,49 @@
                       "child": {
                         "type": "string",
                         "description": "The ID of the component to be rendered inside the card."
+                      },
+                      "styles": {
+                        "type": "object",
+                        "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+                        "additionalProperties": true
                       }
                     },
                     "required": ["child"]
+                  },
+                  "StatChip": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "description": "Hosted stat chip: label + value with optional accent (custom a2ui-react).",
+                    "properties": {
+                      "label": {
+                        "type": "object",
+                        "description": "Short label. literalString or path binding.",
+                        "additionalProperties": false,
+                        "properties": {
+                          "literalString": { "type": "string" },
+                          "path": { "type": "string" }
+                        }
+                      },
+                      "value": {
+                        "type": "object",
+                        "description": "Primary value. literalString or path binding.",
+                        "additionalProperties": false,
+                        "properties": {
+                          "literalString": { "type": "string" },
+                          "path": { "type": "string" }
+                        }
+                      },
+                      "accent": {
+                        "type": "string",
+                        "enum": ["default", "success", "warning", "danger"]
+                      },
+                      "styles": {
+                        "type": "object",
+                        "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+                        "additionalProperties": true
+                      }
+                    },
+                    "required": ["label", "value"]
                   },
                   "Tabs": {
                     "type": "object",
@@ -541,6 +611,11 @@
                           }
                         },
                         "required": ["name"]
+                      },
+                      "styles": {
+                        "type": "object",
+                        "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+                        "additionalProperties": true
                       }
                     },
                     "required": ["child", "action"]

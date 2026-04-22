@@ -64,7 +64,7 @@
 
 | 主题 | 要求 |
 |------|------|
-| **Image** | 使用 **`source.uri`**（及 `alt` 等）承载图片地址，与标准 `url` 的 BoundValue 差异见支持文档；不要用未实现的字段名。 |
+| **Image** | 使用 **`url`** 的 BoundValue（`literalString` / `path`），与实现一致；**字面量或 dataModel 示例图 URL 一律** `https://picsum.photos/96/96`，勿用 `example.com` 等无效地址。 |
 | **Button** | 使用 **`text`** 等本仓库实现字段；若需 `action`，需兼容本地扩展字段。 |
 | **Card** | 使用 **`title` / `subtitle` / `children`（explicitList）`** 等，与「仅 child」的标准示例不同。 |
 | **BoundValue** | `Text.text` 等使用 `literalString` 和/或 `path`；列表模板见 `List`/`Row`/`Column` 的 `children.template` 与 `dataModelUpdate` 的邻接表结构。 |
@@ -77,8 +77,8 @@
 - **图片**：
   - 模型应综合视觉信息（布局、颜色、层次、控件类型）与文本描述。
   - 若图片与文字冲突，**以用户明确文字指令为准**，或在输出中通过 `Text` 简要说明取舍。
-  - 图片中的**不可读区域**用合理占位文案（`literalString`），不要臆造不可验证的 URL；需要真实图床 URL 时应在业务层由用户或后续步骤提供。
-- **输出仍为纯 JSON**：模型侧**不要**把图片二进制写入 A2UI JSON；图片展示用 **Image 组件 + `source.uri`** 指向可访问的 URL，或由用户事先在 `dataModel` 中提供路径。
+  - 图片中的**不可读区域**用合理占位文案（`literalString`），不要臆造不可验证的 URL；凡在 JSON 中给出示例图片地址，**统一**使用 `https://picsum.photos/96/96`。
+- **输出仍为纯 JSON**：模型侧**不要**把图片二进制写入 A2UI JSON；图片展示用 **Image** 的 **`url`**（`literalString` 或 `path`）；字面量或写入数据模型的示例图 URL **固定为** `https://picsum.photos/96/96`。
 
 ---
 
@@ -97,10 +97,11 @@
 2. **协议与消息形态**：`beginRendering` / `surfaceUpdate` / `dataModelUpdate` / `deleteSurface`；合并对象 vs JSONL 行。  
 3. **输出格式**：仅 JSON 或 JSONL；不要用 markdown 代码块（除非产品要求）。  
 4. **允许组件白名单**：Column、Row、List、Text、Image、Icon、Button、Card；禁止未实现组件。  
-5. **与本仓库渲染器对齐**：Text 的 BoundValue；Image 的 `source.uri`；Button / Card 的实作字段；List/Row/Column 的 children 与 dataModel。  
-6. **多模态**：图文结合、冲突处理、禁止内嵌二进制。  
-7. **标识符**：surfaceId、组件 id 等唯一字符串。  
-8. **无法满足时**：降级方案 + Text 说明。
+5. **与本仓库渲染器对齐**：Text 的 BoundValue；Image 的 `url`（字面量/示例数据一律 `https://picsum.photos/96/96`）；Button / Card 的实作字段；List/Row/Column 的 children 与 dataModel。  
+6. **多轮微调**：Playground 每次请求会在 `forwardedProps.a2uiCurrentProtocol` 中附带**当前右侧已渲染界面**反推的协议快照，并在**最后一条 user** 中注入「当前画布协议快照」；模型应**只输出增量** JSON；服务端将增量与快照合并后再以 JSONL 下发。详见 `a2uiAgentPrompt.ts` 中「多轮对话 / 微调」及 `server/.../a2ui/mergeA2uiProtocol.ts`。  
+7. **多模态**：图文结合、冲突处理、禁止内嵌二进制。  
+8. **标识符**：surfaceId、组件 id 等唯一字符串。  
+9. **无法满足时**：降级方案 + Text 说明。
 
 **环境变量（可选）**
 

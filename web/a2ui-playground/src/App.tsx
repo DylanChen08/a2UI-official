@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { TextAreaRef } from 'antd/es/input/TextArea';
 import {
   Button,
   Card,
@@ -13,7 +14,8 @@ import {
   Modal,
   Switch,
   Tag,
-  Collapse
+  Collapse,
+  message
 } from 'antd';
 import ReactDOM from 'react-dom/client';
 import { init, a2uiParser, A2UIMessage, type DataModelUpdatePayload } from 'a2ui-core';
@@ -73,16 +75,70 @@ type AssistantStreamPhase = 'connecting' | 'streaming';
 /** A2UI /api/agent：模型侧返回 → 协议流式渲染 → 完成 */
 type A2uiAgentPhase = 'awaiting_model' | 'rendering_protocol' | 'done';
 
+/** 随用户消息发往 Agent 的图片（AG-UI `binary` + base64 `data`）；`id` 仅客户端用于预览列表与删除 */
+interface ChatImageAttachment {
+  id?: string;
+  mimeType: string;
+  base64Data: string;
+}
+
+function newChatAttachmentId(): string {
+  return crypto.randomUUID?.() ?? `att-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+}
+
+/** 部分系统上 `File.type` 为空，需用扩展名推断 */
+function guessImageMimeFromFileName(name: string): string | null {
+  const lower = name.toLowerCase();
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  return null;
+}
+
+function resolveLocalImageFileMime(f: File): { ok: true; mime: string } | { ok: false } {
+  if (f.type.startsWith('image/')) return { ok: true, mime: f.type };
+  if (!f.type || f.type === 'application/octet-stream') {
+    const g = guessImageMimeFromFileName(f.name);
+    if (g) return { ok: true, mime: g };
+  }
+  return { ok: false };
+}
+
 interface ChatMessage {
   id: string;
   role: ChatRole;
   content: string;
+  /** 多模态：与 `content` 一并发送给 `/api/agent` / `/api/chat` */
+  attachments?: ChatImageAttachment[];
   streamPhase?: AssistantStreamPhase;
   /** 非「仅模型对话」且走 /api/agent 时使用 */
   a2uiPhase?: A2uiAgentPhase;
   /** /api/agent LLM 路径：完整模型输出（CUSTOM a2ui.llm.raw） */
   llmRawOutput?: string;
 }
+
+const DEFAULT_MULTIMODAL_USER_PROMPT =
+  '请根据图片生成符合 A2UI 的合并 JSON（可含 beginRendering、surfaceUpdate、dataModelUpdate 等）。';
+
+const MAX_CHAT_IMAGES = 6;
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+function readFileAsBase64Data(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const s = reader.result as string;
+      resolve(s.includes('base64,') ? (s.split('base64,')[1] ?? s) : s);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+type AgentApiContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'binary'; mimeType: string; data: string };
 
 function parseSseDataLinesToEvents(text: string): unknown[] {
   const events: unknown[] = [];
@@ -102,6 +158,54 @@ function parseSseDataLinesToEvents(text: string): unknown[] {
 
 function a2uiDoneTagOk(content: string): boolean {
   return !/请求失败|客户端错误|RUN_ERROR|调用失败|无法解析|已取消/.test(content);
+}
+
+/**
+ * 把聊天历史转成 /api/agent 的 messages。
+ * 当本请求会带 `forwardedProps.a2uiCurrentProtocol` 时，助手轮仅保留短说明，避免与快照重复占 token；
+ * 否则仍可将上一轮 llmRawOutput 拼进助手 content（无快照时的回退）。
+ */
+function chatMessagesToAgentApiPayload(
+  messages: ChatMessage[],
+  options?: { shortenAssistantWhenSnapshot?: boolean }
+): Array<{ id: string; role: string; content: string | AgentApiContentPart[] }> {
+  const shorten = options?.shortenAssistantWhenSnapshot === true;
+  return messages.map((m) => {
+    if (m.role === 'assistant' && shorten) {
+      return {
+        id: m.id,
+        role: m.role,
+        content:
+          '（上一轮 UI 已渲染；当前完整协议以本请求 forwardedProps.a2uiCurrentProtocol 及最后一条 user 中的「当前画布协议快照」为准；请只输出增量 JSON。）'
+      };
+    }
+    if (m.role === 'assistant' && typeof m.llmRawOutput === 'string' && m.llmRawOutput.trim() && !shorten) {
+      const lines = [
+        '【供多轮修改的上下文：上一轮你输出的 A2UI JSON 如下】',
+        m.llmRawOutput.trim(),
+        '',
+        '（若用户要求调整界面，请输出增量 surfaceUpdate / dataModelUpdate；保持 surfaceId 与组件 id 稳定；除非用户要求整屏重画，否则不要再次发送 beginRendering。）',
+        m.content?.trim() ? `【本轮状态说明】${m.content.trim()}` : ''
+      ].filter(Boolean);
+      return { id: m.id, role: m.role, content: lines.join('\n') };
+    }
+    if (m.role === 'user' && m.attachments?.length) {
+      const text = m.content.trim() || DEFAULT_MULTIMODAL_USER_PROMPT;
+      return {
+        id: m.id,
+        role: 'user',
+        content: [
+          { type: 'text', text },
+          ...m.attachments.map((a) => ({
+            type: 'binary' as const,
+            mimeType: a.mimeType,
+            data: a.base64Data
+          }))
+        ]
+      };
+    }
+    return { id: m.id, role: m.role, content: m.content };
+  });
 }
 
 /** 将 JSONL 每行格式化为可读多段 JSON */
@@ -263,11 +367,54 @@ function App() {
   const [llmChatOnly, setLlmChatOnly] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
   const [chatInput, setChatInput] = useState('');
+  const chatInputRef = useRef<TextAreaRef | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<ChatImageAttachment[]>([]);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const renderRef = useRef<HTMLDivElement>(null);
   const previewRootRef = useRef<ReturnType<typeof ReactDOM.createRoot> | null>(null);
   const threadIdRef = useRef(`thread-${crypto.randomUUID?.() ?? Date.now()}`);
   const abortRef = useRef<AbortController | null>(null);
+
+  const onPickImages = () => fileInputRef.current?.click();
+
+  const onImageFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target;
+    const picked = input.files?.length ? Array.from(input.files) : [];
+    input.value = '';
+    if (picked.length === 0) return;
+
+    const additions: ChatImageAttachment[] = [];
+    for (const f of picked) {
+      const resolved = resolveLocalImageFileMime(f);
+      if (!resolved.ok) {
+        message.warning(`已跳过非图片或无法识别类型：${f.name}`);
+        continue;
+      }
+      if (f.size > MAX_IMAGE_BYTES) {
+        message.warning(`图片过大（>${MAX_IMAGE_BYTES / (1024 * 1024)}MB）：${f.name}`);
+        continue;
+      }
+      try {
+        additions.push({
+          id: newChatAttachmentId(),
+          mimeType: resolved.mime,
+          base64Data: await readFileAsBase64Data(f)
+        });
+      } catch {
+        message.error(`读取失败：${f.name}`);
+      }
+    }
+    if (additions.length === 0) return;
+    setPendingAttachments((prev) => {
+      const merged = [...prev, ...additions];
+      if (merged.length > MAX_CHAT_IMAGES) {
+        message.warning(`最多保留 ${MAX_CHAT_IMAGES} 张，已截断`);
+        return merged.slice(0, MAX_CHAT_IMAGES);
+      }
+      return merged;
+    });
+  };
 
   const handleMountComplete = (componentId: string) => {
     if (storeRef.current) {
@@ -347,6 +494,39 @@ function App() {
       );
     }
   }, [componentTree]);
+
+  /** Ctrl/⌘ + 点击预览区：将命中的 A2UI 组件 id 追加到左侧输入框（避免与普通点击/按钮冲突） */
+  const handlePreviewPointerDownCapture = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (llmChatOnly) return;
+      if (!e.ctrlKey && !e.metaKey) return;
+      const root = renderRef.current;
+      if (!root) return;
+      const target = e.target;
+      if (!(target instanceof HTMLElement) || !root.contains(target)) return;
+
+      const map = storeRef.current?.getState()?.hydrateNodeMap;
+      if (!map || Object.keys(map).length === 0) return;
+
+      let el: HTMLElement | null = target;
+      while (el && el !== root) {
+        const cid = el.id;
+        if (cid && map[cid]) {
+          e.preventDefault();
+          e.stopPropagation();
+          setChatInput((prev) => {
+            const t = prev.trim();
+            return t.length ? `${t} ${cid}` : cid;
+          });
+          message.success(`已插入组件 id：${cid}`);
+          window.setTimeout(() => chatInputRef.current?.focus(), 0);
+          return;
+        }
+        el = el.parentElement;
+      }
+    },
+    [llmChatOnly]
+  );
 
   const simulateStream = useCallback(async () => {
     if (llmChatOnly) return;
@@ -437,16 +617,18 @@ function App() {
 
   const sendAgentMessage = async () => {
     const text = chatInput.trim();
-    if (!text || isStreaming) return;
+    if ((!text && pendingAttachments.length === 0) || isStreaming) return;
 
     const userMsg: ChatMessage = {
       id: `u-${Date.now()}`,
       role: 'user',
-      content: text
+      content: text || (pendingAttachments.length ? '（见附图）' : ''),
+      ...(pendingAttachments.length ? { attachments: [...pendingAttachments] } : {})
     };
     const history = [...messages, userMsg];
     setMessages(history);
     setChatInput('');
+    setPendingAttachments([]);
     setIsStreaming(true);
     abortRef.current?.abort();
     abortRef.current = new AbortController();
@@ -455,10 +637,25 @@ function App() {
 
     try {
       if (llmChatOnly) {
-        const openAiMessages = history.map((m) => ({
-          role: m.role,
-          content: m.content
-        }));
+        const openAiMessages = history.map((m) => {
+          if (m.role === 'user' && m.attachments?.length) {
+            const c =
+              m.content.trim() ||
+              '请根据图片回答或描述内容。';
+            return {
+              role: 'user' as const,
+              content: [
+                { type: 'text' as const, text: c },
+                ...m.attachments.map((a) => ({
+                  type: 'binary' as const,
+                  mimeType: a.mimeType,
+                  data: a.base64Data
+                }))
+              ]
+            };
+          }
+          return { role: m.role, content: m.content };
+        });
         const assistantId = `a-${Date.now()}`;
         setMessages((prev) => [
           ...prev,
@@ -598,8 +795,28 @@ function App() {
         }
       ]);
 
-      a2uiParser.resetRuntimeState();
-      bootstrapRenderer();
+      const hasPriorA2uiAgentOutput = messages.some(
+        (m) =>
+          m.role === 'assistant' &&
+          typeof m.llmRawOutput === 'string' &&
+          m.llmRawOutput.trim().length > 0
+      );
+
+      const storeState = storeRef.current?.getState();
+      const hasSurfaceInStore =
+        !!storeState &&
+        typeof storeState.surfaceMap === 'object' &&
+        Object.keys(storeState.surfaceMap).length > 0;
+      const forwardedProps =
+        hasSurfaceInStore && storeState
+          ? { a2uiCurrentProtocol: buildA2uiProtocolSnapshot(storeState) }
+          : {};
+
+      a2uiParser.endStream();
+      if (!hasPriorA2uiAgentOutput) {
+        a2uiParser.resetRuntimeState();
+        bootstrapRenderer();
+      }
       const createdStore = storeRef.current;
       a2uiParser.initStreamMode();
 
@@ -611,10 +828,12 @@ function App() {
           threadId: threadIdRef.current,
           runId: `run-${Date.now()}`,
           state: {},
-          messages: history.map((m) => ({ id: m.id, role: m.role, content: m.content })),
+          messages: chatMessagesToAgentApiPayload(history, {
+            shortenAssistantWhenSnapshot: hasSurfaceInStore
+          }),
           tools: [],
           context: [],
-          forwardedProps: {}
+          forwardedProps
         })
       });
 
@@ -824,7 +1043,7 @@ function App() {
               <Text type="secondary" style={{ fontSize: 12 }}>
                 {llmChatOnly
                   ? '已开启「仅模型对话」：请求 POST /api/chat，不加载 A2UI。'
-                  : '右侧为 A2UI 预览；服务端将整段 JSONL 协议切片为 CUSTOM / a2ui.jsonl.chunk 流式推送。'}
+                  : '右侧为 A2UI 预览；多轮对话可在同一画布上微调（后续轮次会带上上一轮协议 JSON）。服务端将 JSONL 切片为 CUSTOM / a2ui.jsonl.chunk 流式推送。'}
               </Text>
             </div>
             <Flex align="center" gap={8} style={{ flexShrink: 0 }}>
@@ -866,7 +1085,7 @@ function App() {
             <Text type="secondary">
               {llmChatOnly
                 ? '输入消息后发送，将调用 POST /api/chat（需在服务端 .env 配置 OPENAI_API_KEY）。'
-                : '输入消息后发送，将通过 /api/agent 流式加载右侧预览。'}
+                : '可附加图片（多模态），输入消息后发送，将通过 /api/agent 流式加载右侧预览；可继续发消息做文案/布局微调。'}
             </Text>
           ) : (
             <Flex vertical gap={12} style={{ width: '100%' }}>
@@ -910,19 +1129,39 @@ function App() {
                           <Text type="secondary">正在生成…</Text>
                         </Flex>
                       )}
-                    {m.content ? (
+                    {m.role === 'user' && m.attachments?.length ? (
+                      <Flex wrap="wrap" gap={8} style={{ marginBottom: m.content ? 8 : 0 }}>
+                        {m.attachments.map((a, idx) => (
+                          <img
+                            key={a.id ?? `${m.id}-img-${idx}`}
+                            alt=""
+                            src={`data:${a.mimeType};base64,${a.base64Data}`}
+                            style={{
+                              maxWidth: 160,
+                              maxHeight: 160,
+                              objectFit: 'cover',
+                              borderRadius: 4,
+                              border: '1px solid #d9d9d9'
+                            }}
+                          />
+                        ))}
+                      </Flex>
+                    ) : null}
+                    {m.content || (m.role === 'user' && m.attachments?.length) ? (
                       <div>
-                        <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                          {m.content}
-                        </Text>
-                        {m.role === 'assistant' && m.a2uiPhase === 'done' && (
+                        {m.content ? (
+                          <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                            {m.content}
+                          </Text>
+                        ) : null}
+                        {m.role === 'assistant' && m.a2uiPhase === 'done' && m.content ? (
                           <Tag
                             color={a2uiDoneTagOk(m.content) ? 'success' : 'error'}
                             style={{ marginTop: 8 }}
                           >
                             {a2uiDoneTagOk(m.content) ? '已完成' : '未正常完成'}
                           </Tag>
-                        )}
+                        ) : null}
                       </div>
                     ) : null}
                     {m.role === 'assistant' && m.llmRawOutput && (
@@ -966,10 +1205,104 @@ function App() {
           )}
         </div>
         <div style={{ padding: 16, borderTop: '1px solid #f0f0f0' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+            onChange={onImageFilesSelected}
+          />
+          {pendingAttachments.length > 0 ? (
+            <div
+              style={{
+                marginBottom: 10,
+                padding: '10px 12px',
+                background: '#fafafa',
+                border: '1px solid #f0f0f0',
+                borderRadius: 8
+              }}
+            >
+              <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  待发送图片（{pendingAttachments.length}/{MAX_CHAT_IMAGES}）
+                </Text>
+                <Button
+                  type="link"
+                  size="small"
+                  danger
+                  style={{ padding: 0, height: 'auto' }}
+                  onClick={() => setPendingAttachments([])}
+                >
+                  全部移除
+                </Button>
+              </Flex>
+              <Flex wrap="wrap" gap={10}>
+                {pendingAttachments.map((a, idx) => (
+                  <div
+                    key={a.id ?? `pending-${idx}`}
+                    style={{
+                      position: 'relative',
+                      width: 96,
+                      height: 96,
+                      borderRadius: 8,
+                      overflow: 'hidden',
+                      border: '1px solid #d9d9d9',
+                      flexShrink: 0,
+                      background: '#fff'
+                    }}
+                  >
+                    <img
+                      alt=""
+                      src={`data:${a.mimeType};base64,${a.base64Data}`}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          display: 'block'
+                        }}
+                    />
+                    <button
+                      type="button"
+                      title="移除此图"
+                      aria-label="移除此图"
+                      onClick={() =>
+                        setPendingAttachments((prev) =>
+                          prev.filter((x, i) => (a.id != null ? x.id !== a.id : i !== idx))
+                        )
+                      }
+                      style={{
+                        position: 'absolute',
+                        top: 6,
+                        right: 6,
+                        width: 26,
+                        height: 26,
+                        border: 'none',
+                        borderRadius: '50%',
+                        background: 'rgba(0,0,0,0.55)',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        fontSize: 16,
+                        lineHeight: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.25)'
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </Flex>
+            </div>
+          ) : null}
           <TextArea
+            ref={chatInputRef}
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
-            placeholder="输入消息…（Enter 发送，Shift+Enter 换行）"
+            placeholder="输入消息…可点「附加图片」选择截图（多模态）；Enter 发送，Shift+Enter 换行"
             autoSize={{ minRows: 2, maxRows: 6 }}
             onPressEnter={(e) => {
               if (!e.shiftKey) {
@@ -979,7 +1312,16 @@ function App() {
             }}
             disabled={isStreaming}
           />
-          <Flex justify="flex-end" style={{ marginTop: 8 }}>
+          <Flex justify="space-between" align="center" style={{ marginTop: 8 }}>
+            <Button
+              onClick={onPickImages}
+              disabled={isStreaming || pendingAttachments.length >= MAX_CHAT_IMAGES}
+            >
+              附加图片
+            </Button>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              最多 {MAX_CHAT_IMAGES} 张，单张 ≤ {MAX_IMAGE_BYTES / (1024 * 1024)}MB
+            </Text>
             <Button type="primary" loading={isStreaming} onClick={() => void sendAgentMessage()}>
               发送
             </Button>
@@ -1012,8 +1354,13 @@ function App() {
 
         <Card
           title={
-            <Space>
+            <Space wrap>
               <span>{llmChatOnly ? 'A2UI 预览（已跳过）' : '预览区'}</span>
+              {!llmChatOnly && (
+                <Text type="secondary" style={{ fontSize: 12, fontWeight: 'normal' }}>
+                  Ctrl/⌘ + 点击元素可将组件 id 写入左侧输入框
+                </Text>
+              )}
               {isStreaming && <Spin size="small" />}
             </Space>
           }
@@ -1042,6 +1389,7 @@ function App() {
           ) : (
             <div
               ref={renderRef}
+              onPointerDownCapture={handlePreviewPointerDownCapture}
               style={{
                 flex: 1,
                 minHeight: 280,
@@ -1049,7 +1397,8 @@ function App() {
                 padding: 20,
                 borderRadius: 4,
                 overflow: 'auto',
-                background: '#fff'
+                background: '#fff',
+                cursor: 'default'
               }}
             />
           )}

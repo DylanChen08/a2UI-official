@@ -2,10 +2,13 @@ import { Readable } from 'stream';
 import type { Context } from 'koa';
 import Router from 'koa-router';
 import type OpenAI from 'openai';
-import { getDefaultChatModel, getOpenAiCompatibleClient } from '../provider';
+import { getDefaultChatModel, getOpenAiCompatibleClient, getVisionChatModel } from '../provider';
+import { runAgentInputHasUserImages } from '../agent/agUiContentToOpenAi';
+import { chatApiMessageToOpenAi } from '../agent/chatApiToOpenAi';
 
 export interface ChatRequestBody {
-  messages?: Array<{ role: string; content: string }>;
+  /** 文本，或 AG-UI 风格多模态：`[{ type: 'text', text }, { type: 'binary', mimeType, data }]` */
+  messages?: Array<{ role: string; content: string | unknown[] }>;
   model?: string;
   /** 为 true 时使用 SSE 流式返回正文增量 */
   stream?: boolean;
@@ -35,15 +38,8 @@ export function createChatRouter(): Router {
 
     const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
     for (const m of raw) {
-      const role = m.role;
-      const content = m.content;
-      if (
-        (role === 'user' || role === 'assistant') &&
-        typeof content === 'string' &&
-        content.length > 0
-      ) {
-        openAiMessages.push({ role, content });
-      }
+      const conv = chatApiMessageToOpenAi(m as { role: string; content: unknown });
+      if (conv) openAiMessages.push(conv);
     }
 
     if (openAiMessages.length === 0) {
@@ -60,8 +56,15 @@ export function createChatRouter(): Router {
       return;
     }
 
+    const useVision = runAgentInputHasUserImages(
+      raw as Array<{ role?: string; content?: unknown }>
+    );
     const model =
-      typeof body.model === 'string' && body.model.trim() ? body.model.trim() : getDefaultChatModel();
+      typeof body.model === 'string' && body.model.trim()
+        ? body.model.trim()
+        : useVision
+          ? getVisionChatModel()
+          : getDefaultChatModel();
 
     const wantStream = body.stream === true;
 

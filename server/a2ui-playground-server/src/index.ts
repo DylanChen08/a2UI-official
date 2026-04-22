@@ -17,7 +17,13 @@ app.use(
     origin: corsOrigin || '*'
   })
 );
-app.use(bodyParser());
+app.use(
+  bodyParser({
+    jsonLimit: '50mb',
+    formLimit: '50mb',
+    textLimit: '50mb'
+  })
+);
 
 const agentRouter = createAgentRouter();
 const antdIconsRouter = createAntdIconsRouter();
@@ -28,6 +34,7 @@ app.use(antdIconsRouter.routes());
 app.use(antdIconsRouter.allowedMethods());
 app.use(chatRouter.routes());
 app.use(chatRouter.allowedMethods());
+
 
 const PORT = Number(process.env.PORT || 3847);
 app.listen(PORT, () => {

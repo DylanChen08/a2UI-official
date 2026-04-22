@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { type CSSProperties } from 'react';
+import { mergeComponentStyles } from './mergeComponentStyles';
 
 export interface TextProps {
   id?: string;
@@ -8,6 +9,8 @@ export interface TextProps {
     path?: string;
   };
   usageHint?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'caption' | 'body';
+  /** 协议可选：根节点额外 inline 样式（camelCase），覆盖在 usageHint 默认样式之上 */
+  styles?: CSSProperties;
   hasMounted?: boolean;
   onMountComplete?: (componentId: string) => void;
 }
@@ -16,7 +19,8 @@ export const Text: React.FC<TextProps> = ({
   id, 
   className,
   text, 
-  usageHint = 'body'
+  usageHint = 'body',
+  styles
 }) => {
 
   const displayText = text.literalString || text.path || '';
@@ -62,9 +66,7 @@ export const Text: React.FC<TextProps> = ({
     <div 
       id={id} 
       className={className}
-      style={{
-        ...styleMap[usageHint]
-      }}
+      style={mergeComponentStyles(styleMap[usageHint], styles)}
     >
       {displayText}
     </div>

@@ -1,4 +1,5 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, type CSSProperties } from 'react';
+import { mergeComponentStyles } from './mergeComponentStyles';
 
 export interface ListProps {
   id: string;
@@ -6,6 +7,8 @@ export interface ListProps {
   children?: ReactNode;
   direction?: 'vertical' | 'horizontal';
   alignment?: 'center' | 'end' | 'start' | 'stretch';
+  /** 协议可选：根节点额外 inline 样式 */
+  styles?: CSSProperties;
   hasMounted?: boolean;
   onMountComplete?: (componentId: string) => void;
 }
@@ -15,7 +18,8 @@ export const List: React.FC<ListProps> = ({
   className,
   children,
   direction = 'vertical',
-  alignment = 'start'
+  alignment = 'start',
+  styles
 }) => {
   const flexDirection = direction === 'horizontal' ? 'row' : 'column';
 
@@ -37,13 +41,16 @@ export const List: React.FC<ListProps> = ({
     <div
       id={id}
       className={className}
-      style={{
-        display: 'flex',
-        flexDirection,
-        alignItems: alignItems[alignment],
-        width: '100%',
-        height: '100%'
-      }}
+      style={mergeComponentStyles(
+        {
+          display: 'flex',
+          flexDirection,
+          alignItems: alignItems[alignment],
+          width: '100%',
+          height: '100%'
+        },
+        styles
+      )}
     >
       {renderChildren()}
     </div>

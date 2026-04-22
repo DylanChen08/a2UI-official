@@ -622,6 +622,23 @@ export class A2UIParser {
       };
     }
 
+    if (componentName === 'StatChip' && componentProps) {
+      let next = { ...componentProps };
+      if (next.label && typeof next.label === 'object' && !Array.isArray(next.label)) {
+        next = {
+          ...next,
+          label: { literalString: resolveBoundText(next.label, textScope) }
+        };
+      }
+      if (next.value && typeof next.value === 'object' && !Array.isArray(next.value)) {
+        next = {
+          ...next,
+          value: { literalString: resolveBoundText(next.value, textScope) }
+        };
+      }
+      componentProps = next;
+    }
+
     if (componentName === 'Card' && componentProps) {
       let next = { ...componentProps };
       if (next.title && typeof next.title === 'object' && !Array.isArray(next.title)) {

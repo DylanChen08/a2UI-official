@@ -1,4 +1,5 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, type CSSProperties } from 'react';
+import { mergeComponentStyles } from './mergeComponentStyles';
 
 export interface ColumnProps {
   id: string;
@@ -6,6 +7,8 @@ export interface ColumnProps {
   children?: ReactNode;
   distribution?: 'start' | 'center' | 'end' | 'spaceBetween' | 'spaceAround' | 'spaceEvenly';
   alignment?: 'center' | 'end' | 'start' | 'stretch';
+  /** 协议可选：根节点额外 inline 样式 */
+  styles?: CSSProperties;
   hasMounted?: boolean;
   onMountComplete?: (componentId: string) => void;
 }
@@ -15,7 +18,8 @@ export const Column: React.FC<ColumnProps> = ({
   className,
   children, 
   distribution = 'start', 
-  alignment = 'start'
+  alignment = 'start',
+  styles
 }) => {
   const justifyContent = {
     start: 'flex-start',
@@ -53,20 +57,24 @@ export const Column: React.FC<ColumnProps> = ({
     <div 
       id={id}
       className={className}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        flexWrap: 'nowrap',
-        gap: 12,
-        justifyContent: justifyContent[distribution],
-        alignItems: alignItems[alignment],
-        boxSizing: 'border-box',
-        width: '100%',
-        minHeight: 0,
-        ...(distributesMainSpace
-          ? { height: 'fit-content', maxHeight: '100%' }
-          : { height: '100%' })
-      }}
+      style={mergeComponentStyles(
+        {
+          display: 'flex',
+          flexDirection: 'column',
+          flexWrap: 'nowrap',
+          gap: 12,
+          justifyContent: justifyContent[distribution],
+          alignItems: alignItems[alignment],
+          boxSizing: 'border-box',
+          /** 不设死 100%：作为 Row 子项时需随内容/弹性并排，否则每项都会占满一行导致「竖排」错觉 */
+          minWidth: 0,
+          minHeight: 0,
+          ...(distributesMainSpace
+            ? { height: 'fit-content', maxHeight: '100%' }
+            : { height: '100%' })
+        },
+        styles
+      )}
     >
       {renderChildren()}
     </div>

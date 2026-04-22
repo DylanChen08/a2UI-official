@@ -8,6 +8,7 @@ import { Button, type OpenLinkSpec } from './Button';
 import { Image } from './Image';
 import { Icon } from './Icon';
 import { Card } from './Card';
+import { StatChip } from './StatChip';
 import './AnimatedWrapper.css';
 
 export interface RenderFunction {
@@ -149,6 +150,19 @@ export const createRenderMap = (
       className: `${className} ${props.className || ''}`
     });
   },
+  StatChip: (props: any) => {
+    const hasMounted = getHasMounted(props.id);
+    if (!hasMounted) {
+      setTimeout(() => {
+        onMountComplete(props.id);
+      }, 300);
+    }
+    const className = `animated-wrapper ${!hasMounted ? 'animating' : ''}`;
+    return React.createElement(StatChip, {
+      ...props,
+      className: `${className} ${props.className || ''}`
+    });
+  }
 });
 
 // 默认的 renderMap（不带动画）
@@ -160,8 +174,10 @@ export const renderMap: RenderMap = {
   Button: (props: any) => React.createElement(Button, props),
   Image: (props: any) => React.createElement(Image, props),
   Icon: (props: any) => React.createElement(Icon, props),
-  Card: (props: any) => React.createElement(Card, props)
+  Card: (props: any) => React.createElement(Card, props),
+  StatChip: (props: any) => React.createElement(StatChip, props)
 };
 
-export { Text, Column, Row, List, Button, Image, Icon, Card };
+export { Text, Column, Row, List, Button, Image, Icon, Card, StatChip };
 export type { OpenLinkSpec };
+export { mergeComponentStyles } from './mergeComponentStyles';

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "description": "A2UI 生成场景评测集（用户输入侧）。用于 Playground /api/agent 或 LLM 回归：检查 beginRendering（surfaceId、root）、surfaceUpdate 组件表、嵌套 Card/Column/Row、explicitList 顺序、Text/Image/Icon/Button 绑定、path/dataModel、Button.child 等。eval-11～eval-20 为带具体业务域的复杂场景。宿主未实现 Slider/TextField 等时，模型应改用 Text+布局替代。",
+  "description": "A2UI 生成场景评测集（用户输入侧）。用于 Playground /api/agent 或 LLM 回归：检查 beginRendering（surfaceId、root）、surfaceUpdate 组件表、嵌套 Card/Column/Row、explicitList 顺序、Text/Image/Icon/Button 绑定、path/dataModel、Button.child 等。eval-11～eval-20 为带具体业务域的复杂场景；eval-21 专测宿主扩展 StatChip。宿主未实现 Slider/TextField 等时，模型应改用 Text+布局替代。凡出现 Image 且使用 url.literalString（或 dataModel 中的示例图 URL），一律为 https://picsum.photos/96/96。",
   "scenarios": [
     {
       "id": "eval-01",
@@ -12,13 +12,13 @@
       "id": "eval-02",
       "name": "商品详情卡",
       "tags": ["card", "image", "text", "button"],
-      "userPrompt": "做一个商品展示卡片：顶部商品图，中间标题与简短描述，下方显示价格，底部有主按钮「加入购物车」，按钮文案用子 Text 组件。"
+      "userPrompt": "做一个商品展示卡片：顶部商品图，中间标题与简短描述，下方显示价格，底部有主按钮「加入购物车」，按钮文案用子 Text 组件。Image 的 url.literalString 须为 https://picsum.photos/96/96。"
     },
     {
       "id": "eval-03",
       "name": "用户资料行",
       "tags": ["row", "column", "text", "avatar"],
-      "userPrompt": "布局为左侧圆形头像（用 Image usageHint avatar）、右侧 Column：昵称大号、邮箱小号、底部一行操作按钮「编辑资料」。"
+      "userPrompt": "布局为左侧圆形头像（用 Image usageHint avatar）、右侧 Column：昵称大号、邮箱小号、底部一行操作按钮「编辑资料」。头像 Image 的 url.literalString 须为 https://picsum.photos/96/96。"
     },
     {
       "id": "eval-04",
@@ -48,7 +48,7 @@
       "id": "eval-08",
       "name": "新闻摘要",
       "tags": ["image", "text", "card"],
-      "userPrompt": "新闻卡片：头图、标题 h2、摘要 body、底部「阅读全文」按钮（child 指向 Text）。"
+      "userPrompt": "新闻卡片：头图、标题 h2、摘要 body、底部「阅读全文」按钮（child 指向 Text）。头图 Image 的 url.literalString 须为 https://picsum.photos/96/96。"
     },
     {
       "id": "eval-09",
@@ -96,7 +96,7 @@
       "id": "eval-16",
       "name": "B2B 工业备件询价卡",
       "tags": ["B2B", "Image", "Row", "Column", "spaceBetween"],
-      "userPrompt": "业务：采购员在备件目录中打开某一物料卡片：产品图、型号名称、单价与交期提示，并可询价或收藏。技术：Card 内先 Image（mediumFeature、cover、url literal 占位）；其下 Row spaceBetween：左 Column 两行（物料型号 path /sku/name + literal，规格说明 literal）；右 Column 两行（单价 h4 literal、交期 caption literal）；再一行 Row 两个次要 Button，child Text 为「询价」「收藏」。"
+      "userPrompt": "业务：采购员在备件目录中打开某一物料卡片：产品图、型号名称、单价与交期提示，并可询价或收藏。技术：Card 内先 Image（mediumFeature、cover，url.literalString 固定为 https://picsum.photos/96/96）；其下 Row spaceBetween：左 Column 两行（物料型号 path /sku/name + literal，规格说明 literal）；右 Column 两行（单价 h4 literal、交期 caption literal）；再一行 Row 两个次要 Button，child Text 为「询价」「收藏」。"
     },
     {
       "id": "eval-17",
@@ -120,7 +120,13 @@
       "id": "eval-20",
       "name": "外卖店铺首页首屏",
       "tags": ["food-delivery", "beginRendering", "surfaceUpdate", "path", "root"],
-      "userPrompt": "业务：用户进入某外卖商家页的首屏：店招图、店名、起送价与配送时间提示，以及一个「进店逛逛」入口。技术：单 surface，surfaceId 为 waimai-shop-home，root 组件 id 为 shop-home-root 且为 Card；须同时包含 beginRendering 与 surfaceUpdate；components 至少 8 个节点，覆盖 Card/Column/Row/Text/Image/Icon/Button；至少两处 Text 使用 path 与 literalString 占位（如店名、起送价）；至少一个 Image（店招）与一个 Button（child 指向「进店逛逛」的 Text）。id 语义化且唯一。"
+      "userPrompt": "业务：用户进入某外卖商家页的首屏：店招图、店名、起送价与配送时间提示，以及一个「进店逛逛」入口。技术：单 surface，surfaceId 为 waimai-shop-home，root 组件 id 为 shop-home-root 且为 Card；须同时包含 beginRendering 与 surfaceUpdate；components 至少 8 个节点，覆盖 Card/Column/Row/Text/Image/Icon/Button；至少两处 Text 使用 path 与 literalString 占位（如店名、起送价）；至少一个 Image（店招，url.literalString 须为 https://picsum.photos/96/96）与一个 Button（child 指向「进店逛逛」的 Text）。id 语义化且唯一。"
+    },
+    {
+      "id": "eval-21",
+      "name": "StatChip 指标行（宿主扩展）",
+      "tags": ["StatChip", "Row", "Card", "accent", "literalString", "path", "hosted"],
+      "userPrompt": "做一个天气/环境监测卡：根为 Card（id 如 env-card-root）。Card 的 child 指向一个 Row（id 如 env-metrics-row），Row 的 children.explicitList 里放 **恰好三个 StatChip**，不要用 Column+两个 Text 代替。三个 StatChip 的 id 带前缀如 chip- 且互不重复：① label.literalString「湿度」、value.literalString「65%」、accent「default」；② label「紫外线」、value「最弱」、accent「success」；③ label「气压」、value 用 path「/weather/pressure」并给 literalString 占位「—」；至少一个 StatChip 的 accent 为「warning」或「danger」以覆盖强调色。另在同一合并 JSON 里（若协议允许）附带 dataModelUpdate 写入 /weather/pressure 的示例数值如「1005hPa」。StatChip.label 与 StatChip.value 必须是对象绑定形状，勿写成字符串。"
     }
   ]
 }

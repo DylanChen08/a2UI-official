@@ -1,4 +1,5 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, type CSSProperties } from 'react';
+import { mergeComponentStyles } from './mergeComponentStyles';
 
 export interface RowProps {
   id: string;
@@ -6,6 +7,8 @@ export interface RowProps {
   children?: ReactNode;
   distribution?: 'start' | 'center' | 'end' | 'spaceBetween' | 'spaceAround' | 'spaceEvenly';
   alignment?: 'center' | 'end' | 'start' | 'stretch';
+  /** 协议可选：根节点额外 inline 样式 */
+  styles?: CSSProperties;
   hasMounted?: boolean;
   onMountComplete?: (componentId: string) => void;
 }
@@ -15,7 +18,8 @@ export const Row: React.FC<RowProps> = ({
   className,
   children,
   distribution = 'start',
-  alignment = 'start'
+  alignment = 'start',
+  styles
 }) => {
 
   const justifyContent = {
@@ -49,17 +53,20 @@ export const Row: React.FC<RowProps> = ({
     <div
       id={id}
       className={className}
-      style={{
-        display: 'flex',
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 12,
-        justifyContent: justifyContent[distribution],
-        alignItems: alignItems[alignment],
-        width: '100%',
-        minHeight: 0,
-        height: 'auto'
-      }}
+      style={mergeComponentStyles(
+        {
+          display: 'flex',
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          gap: 12,
+          justifyContent: justifyContent[distribution],
+          alignItems: alignItems[alignment],
+          width: '100%',
+          minHeight: 0,
+          height: 'auto'
+        },
+        styles
+      )}
     >
       {renderChildren()}
     </div>

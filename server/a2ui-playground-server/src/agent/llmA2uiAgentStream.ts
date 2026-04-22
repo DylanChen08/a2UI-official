@@ -8,9 +8,15 @@ import {
   type RunFinishedEvent,
   type RunStartedEvent
 } from '@ag-ui/core';
-import { getDefaultChatModel } from '../provider';
+import { getDefaultChatModel, getVisionChatModel } from '../provider';
+import {
+  agUiPartsToOpenAiContentParts,
+  runAgentInputHasUserImages,
+  type AgUiContentPart
+} from './agUiContentToOpenAi';
 import { buildA2uiAgentSystemPrompt } from '../prompt';
 import { splitCombinedA2uiMessage } from '../a2ui/splitCombinedMessage';
+import { mergeA2uiProtocol } from '../a2ui/mergeA2uiProtocol';
 import {
   a2uiAgentDbg,
   a2uiAgentInfo,
@@ -64,22 +70,102 @@ function extractMessagePlainText(m: { role: string; content?: unknown }): string
   return null;
 }
 
+function shouldInjectCurrentProtocol(proto: unknown): boolean {
+  if (proto == null || typeof proto !== 'object') return false;
+  const p = proto as Record<string, unknown>;
+  if (p._note === 'No surface in store') return false;
+  return !!(p.beginRendering || p.surfaceUpdate);
+}
+
+function injectSnapshotIntoUserText(text: string, proto: unknown): string {
+  return `【当前画布协议快照（Playground 从已渲染状态导出，与右侧预览一致）】\n${JSON.stringify(
+    proto
+  )}\n\n【用户本次指令】\n${text}`;
+}
+
 /**
- * RunAgentInput → OpenAI messages：首条为 A2UI 中文 system prompt，其余为 user/assistant 文本轮次。
+ * RunAgentInput → OpenAI messages：首条为 A2UI 中文 system prompt，其余为 user/assistant 轮次（文本或多模态图片）。
+ * `forwardedProps.a2uiCurrentProtocol` 存在时，在**最后一条 user** 中注入「当前画布协议快照」（纯文本或与首段 text 合并）。
  */
 export function buildOpenAiMessagesForA2uiAgent(
   input: RunAgentInput
 ): OpenAI.Chat.ChatCompletionMessageParam[] {
+  const fp = input.forwardedProps as { a2uiCurrentProtocol?: unknown } | undefined;
+  const proto = fp?.a2uiCurrentProtocol;
+
   const out: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: 'system', content: buildA2uiAgentSystemPrompt() }
   ];
-  for (const m of input.messages) {
-    if (m.role !== 'user' && m.role !== 'assistant') continue;
-    const text = extractMessagePlainText(m as { role: string; content?: unknown });
-    if (text) {
-      out.push({ role: m.role as 'user' | 'assistant', content: text });
+
+  const msgList = input.messages ?? [];
+  let lastUserIdx = -1;
+  for (let i = msgList.length - 1; i >= 0; i--) {
+    if (msgList[i]?.role === 'user') {
+      lastUserIdx = i;
+      break;
     }
   }
+
+  for (let i = 0; i < msgList.length; i++) {
+    const m = msgList[i];
+    if (m.role !== 'user' && m.role !== 'assistant') continue;
+
+    if (m.role === 'assistant') {
+      const text = extractMessagePlainText(m as { role: string; content?: unknown });
+      if (!text) continue;
+      out.push({ role: 'assistant', content: text });
+      continue;
+    }
+
+    const inject =
+      shouldInjectCurrentProtocol(proto) && i === lastUserIdx ? (proto as unknown) : null;
+
+    const rawContent = (m as { content?: unknown }).content;
+    if (typeof rawContent === 'string') {
+      let text = rawContent.trim();
+      if (!text) continue;
+      if (inject != null) text = injectSnapshotIntoUserText(text, inject);
+      out.push({ role: 'user', content: text });
+      continue;
+    }
+
+    if (Array.isArray(rawContent)) {
+      const parts = rawContent.map((p) => ({ ...(p as object) })) as AgUiContentPart[];
+      if (parts.length === 0) continue;
+
+      if (inject != null) {
+        const snapPrefix = `【当前画布协议快照（Playground 从已渲染状态导出，与右侧预览一致）】\n${JSON.stringify(
+          inject
+        )}\n\n【用户本次指令】\n`;
+        let hitText = false;
+        for (const p of parts) {
+          if (p.type === 'text' && typeof p.text === 'string') {
+            p.text = snapPrefix + p.text;
+            hitText = true;
+            break;
+          }
+        }
+        if (!hitText) {
+          parts.unshift({
+            type: 'text',
+            text:
+              snapPrefix +
+              '（本条仅含图片时，请结合图片与界面需求输出符合 A2UI 的合并 JSON。）'
+          });
+        }
+      }
+
+      let oaParts = agUiPartsToOpenAiContentParts(parts);
+      if (oaParts.length === 0) continue;
+      const hasText = oaParts.some((x) => x.type === 'text');
+      if (!hasText) {
+        oaParts = [{ type: 'text', text: '请根据图片生成符合 A2UI 的合并 JSON。' }, ...oaParts];
+      }
+      out.push({ role: 'user', content: oaParts });
+      continue;
+    }
+  }
+
   if (out.length === 1) {
     out.push({
       role: 'user',
@@ -202,7 +288,9 @@ export async function* llmA2uiAgentEventStream(
   };
   yield started;
 
-  const model = getDefaultChatModel();
+  const model = runAgentInputHasUserImages(input.messages ?? [])
+    ? getVisionChatModel()
+    : getDefaultChatModel();
   const openAiTools = toOpenAiTools(input.tools);
   let messages = buildOpenAiMessagesForA2uiAgent(input);
   const sys0 = messages[0];
@@ -303,6 +391,18 @@ export async function* llmA2uiAgentEventStream(
       message: `无法解析模型输出为 A2UI JSON: ${msg}。完整原始输出见 Playground「模型原始输出」区块。`
     };
     return;
+  }
+
+  const fp = input.forwardedProps as { a2uiCurrentProtocol?: unknown } | undefined;
+  const baseProto = fp?.a2uiCurrentProtocol;
+  if (shouldInjectCurrentProtocol(baseProto)) {
+    const merged = mergeA2uiProtocol(baseProto as Record<string, unknown>, combined);
+    a2uiAgentDbg('merged delta into current protocol snapshot', {
+      threadId: input.threadId,
+      deltaKeys: Object.keys(combined),
+      mergedKeys: Object.keys(merged)
+    });
+    combined = merged;
   }
 
   const fragments = splitCombinedA2uiMessage(combined);

@@ -29,6 +29,11 @@
             "caption",
             "body"
           ]
+        },
+        "styles": {
+          "type": "object",
+          "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+          "additionalProperties": true
         }
       },
       "required": [
@@ -74,6 +79,11 @@
             "largeFeature",
             "header"
           ]
+        },
+        "styles": {
+          "type": "object",
+          "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+          "additionalProperties": true
         }
       },
       "required": [
@@ -146,6 +156,11 @@
               "type": "string"
             }
           }
+        },
+        "styles": {
+          "type": "object",
+          "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+          "additionalProperties": true
         }
       },
       "required": [
@@ -264,6 +279,11 @@
             "end",
             "stretch"
           ]
+        },
+        "styles": {
+          "type": "object",
+          "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+          "additionalProperties": true
         }
       },
       "required": [
@@ -325,6 +345,11 @@
             "start",
             "stretch"
           ]
+        },
+        "styles": {
+          "type": "object",
+          "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+          "additionalProperties": true
         }
       },
       "required": [
@@ -382,6 +407,11 @@
             "end",
             "stretch"
           ]
+        },
+        "styles": {
+          "type": "object",
+          "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+          "additionalProperties": true
         }
       },
       "required": [
@@ -395,11 +425,60 @@
         "child": {
           "type": "string",
           "description": "The ID of the component to be rendered inside the card."
+        },
+        "styles": {
+          "type": "object",
+          "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+          "additionalProperties": true
         }
       },
       "required": [
         "child"
       ]
+    },
+    "StatChip": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Hosted stat chip: compact label + value with optional accent border (custom a2ui-react host component).",
+      "properties": {
+        "label": {
+          "type": "object",
+          "description": "Short label (e.g. metric name). literalString or path binding.",
+          "additionalProperties": false,
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "value": {
+          "type": "object",
+          "description": "Primary value text. literalString or path binding.",
+          "additionalProperties": false,
+          "properties": {
+            "literalString": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          }
+        },
+        "accent": {
+          "type": "string",
+          "description": "Left border accent.",
+          "enum": ["default", "success", "warning", "danger"]
+        },
+        "styles": {
+          "type": "object",
+          "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+          "additionalProperties": true
+        }
+      },
+      "required": ["label", "value"]
     },
     "Tabs": {
       "type": "object",
@@ -531,6 +610,11 @@
           "required": [
             "name"
           ]
+        },
+        "styles": {
+          "type": "object",
+          "description": "Optional inline styles for the host root (camelCase CSS properties). Merged over host defaults.",
+          "additionalProperties": true
         }
       },
       "required": [

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { type CSSProperties } from 'react';
+import { mergeComponentStyles } from './mergeComponentStyles';
 
 export interface CardProps {
   id?: string;
@@ -13,6 +14,8 @@ export interface CardProps {
     path?: string;
   };
   elevation?: number;
+  /** 协议可选：卡片根容器额外 inline 样式 */
+  styles?: CSSProperties;
   hasMounted?: boolean;
   onMountComplete?: (componentId: string) => void;
 }
@@ -23,7 +26,8 @@ export const Card: React.FC<CardProps> = ({
   children,
   title,
   subtitle,
-  elevation = 2
+  elevation = 2,
+  styles
 }) => {
   const displayTitle = title?.literalString || title?.path || '';
   const displaySubtitle = subtitle?.literalString || subtitle?.path || '';
@@ -32,13 +36,16 @@ export const Card: React.FC<CardProps> = ({
     <div
       id={id}
       className={className}
-      style={{
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        boxShadow: `0 ${elevation}px ${2 * elevation}px rgba(0, 0, 0, 0.1)`,
-        padding: '16px',
-        margin: '8px'
-      }}
+      style={mergeComponentStyles(
+        {
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          boxShadow: `0 ${elevation}px ${2 * elevation}px rgba(0, 0, 0, 0.1)`,
+          padding: '16px',
+          margin: '8px'
+        },
+        styles
+      )}
     >
       {(displayTitle || displaySubtitle) && (
         <div style={{ marginBottom: '12px' }}>
