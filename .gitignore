@@ -1,3 +1,11 @@
-node_modules
-.pnpm
-dist
+node_modules/
+**/node_modules/
+!/dist/
+.pnpm/
+dist/
+.idea/
+vscode/
+cursor/
+.DS_Store
+**/.pnpm-store/
+**/.pnpm-store
