@@ -84,23 +84,36 @@ export function getLlmConfig(): LlmClientConfig | null {
 export function getDefaultChatModel(): string {
   const provider = getLlmProvider();
   if (provider === 'moonshot') {
-    return process.env.KIMI_MODEL?.trim() || 'qwen3.5-plus';
+    return process.env.KIMI_MODEL?.trim() || 'kimi-k2.6';
   }
   if (provider === 'openai') {
-    return process.env.OPENAI_MODEL?.trim() || 'qwen3.5-plus';
+    return process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini';
   }
   if (provider === 'llm_compat') {
     return process.env.LLM_MODEL?.trim() || 'qwen3.5-plus';
   }
-  return process.env.KIMI_MODEL?.trim() || process.env.OPENAI_MODEL?.trim() || 'qwen3.5-plus';
+  return process.env.KIMI_MODEL?.trim() || process.env.OPENAI_MODEL?.trim() || 'kimi-k2.6';
 }
 
 /**
- * 含用户图片等多模态请求时优先使用（`OPENAI_VISION_MODEL`）。
+ * 含用户图片等多模态请求时优先使用对应供应商的视觉模型。
  * 未设置时回退到 `getDefaultChatModel()`，避免破坏仅文本场景。
  */
 export function getVisionChatModel(): string {
-  const v = process.env.OPENAI_VISION_MODEL?.trim();
+  const provider = getLlmProvider();
+  let v: string | undefined;
+  if (provider === 'moonshot') {
+    v = process.env.KIMI_VISION_MODEL?.trim() || process.env.KIMI_MODEL?.trim();
+  } else if (provider === 'openai') {
+    v = process.env.OPENAI_VISION_MODEL?.trim() || process.env.OPENAI_MODEL?.trim();
+  } else if (provider === 'llm_compat') {
+    v = process.env.LLM_VISION_MODEL?.trim() || process.env.LLM_MODEL?.trim();
+  } else {
+    v =
+      process.env.KIMI_VISION_MODEL?.trim() ||
+      process.env.OPENAI_VISION_MODEL?.trim() ||
+      process.env.LLM_VISION_MODEL?.trim();
+  }
   return v || getDefaultChatModel();
 }
 

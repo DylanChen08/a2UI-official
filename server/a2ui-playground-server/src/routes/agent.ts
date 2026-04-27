@@ -151,7 +151,6 @@ export function createAgentRouter(): Router {
       }
     }
 
-    debugger;
     ctx.body = Readable.from(eventStrings(), { objectMode: false });
     ctx.status = 200;
   });

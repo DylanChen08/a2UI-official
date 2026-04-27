@@ -36,6 +36,22 @@ const CHUNK_GAP_MS_MAX = 120;
 const PROTO_CHUNK_CHARS_MIN = 4;
 const PROTO_CHUNK_CHARS_MAX = 48;
 
+function isKimiK2Model(model: string): boolean {
+  const normalized = model.trim().toLowerCase();
+  return normalized === 'kimi-k2' || normalized.startsWith('kimi-k2.');
+}
+
+function getChatCompletionOverrides(
+  model: string
+): Partial<OpenAI.Chat.ChatCompletionCreateParamsNonStreaming> & {
+  thinking?: { type: 'disabled' };
+} {
+  if (isKimiK2Model(model)) {
+    return { thinking: { type: 'disabled' } };
+  }
+  return { temperature: 0.1 };
+}
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -315,7 +331,7 @@ export async function* llmA2uiAgentEventStream(
         model,
         messages,
         ...(openAiTools.length > 0 ? { tools: openAiTools, tool_choice: 'auto' as const } : {}),
-        temperature: 0.1
+        ...getChatCompletionOverrides(model)
       });
       const choice = completion.choices[0]?.message;
       if (!choice) {
