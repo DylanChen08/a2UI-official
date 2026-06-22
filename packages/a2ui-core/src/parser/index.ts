@@ -657,7 +657,19 @@ export class A2UIParser {
     }
 
     if (renderMap[componentName]) {
-      const propsWithId = componentId ? { ...componentProps, id: componentId } : componentProps;
+      const stripDeclarativeChildProps = (props: any): any => {
+        if (!props || typeof props !== 'object') return props;
+        const next = { ...props };
+        if (next.children && typeof next.children === 'object' && !Array.isArray(next.children)) {
+          delete next.children;
+        }
+        if (next.child !== undefined) {
+          delete next.child;
+        }
+        return next;
+      };
+      const cleanProps = stripDeclarativeChildProps(componentProps);
+      const propsWithId = componentId ? { ...cleanProps, id: componentId } : cleanProps;
       const result = renderMap[componentName](propsWithId);
       return result;
     } else {

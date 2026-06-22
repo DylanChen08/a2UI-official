@@ -48,7 +48,6 @@ export const createRenderMap = (
   },
   Column: (props: any) => {
     const hasMounted = getHasMounted(props.id);
-    console.log('####hasMounted', hasMounted);
     if (!hasMounted) {
       setTimeout(() => {
         onMountComplete(props.id);

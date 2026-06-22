@@ -1178,24 +1178,24 @@ function App() {
     <ConfigProvider
       theme={{
         token: {
-          colorPrimary: '#1677ff',
-          colorBgLayout: '#f5f7fb',
-          colorBorder: '#e5e7eb',
-          colorText: '#1f2937',
-          colorTextSecondary: '#6b7280',
-          borderRadius: 10,
-          fontSize: 14
+          colorPrimary: '#2563eb',
+          colorBgLayout: '#f5f5f3',
+          colorBorder: '#e2e1dc',
+          colorText: '#1c1c1a',
+          colorTextSecondary: '#84847d',
+          borderRadius: 8,
+          fontSize: 13
         },
         components: {
-          Button: { borderRadius: 8, controlHeight: 34 },
-          Card: { borderRadiusLG: 12 },
+          Button: { borderRadius: 7, controlHeight: 34 },
+          Card: { borderRadiusLG: 10 },
           Input: { borderRadius: 8 },
           Select: { borderRadius: 8 }
         }
       }}
     >
       <Layout className="app-shell">
-        <Sider width={360} className="agent-sider">
+        <Sider width={336} className="agent-sider">
           <div className="agent-header">
             <div>
               <Title level={4} className="agent-title">
@@ -1257,7 +1257,7 @@ function App() {
               onClick={() => void simulateStream()}
               disabled={isStreaming || llmChatOnly}
             >
-              {isStreaming && !llmChatOnly ? '正在生成...' : componentTree ? '重新生成 Mock 页面' : '生成 Mock 页面'}
+              {isStreaming && !llmChatOnly ? '正在生成...' : componentTree ? '↻ 重新生成 Mock 页面' : '↻ 生成 Mock 页面'}
             </Button>
           </div>
 
@@ -1432,7 +1432,7 @@ function App() {
                 <Text type="secondary">≤ {MAX_IMAGE_BYTES / (1024 * 1024)}MB/张</Text>
               </Space>
               <Button type="primary" loading={isStreaming} onClick={() => void sendAgentMessage()}>
-                {isStreaming ? '发送中...' : '发送'}
+                {isStreaming ? '发送中...' : '发送 →'}
               </Button>
             </Flex>
           </div>
@@ -1448,8 +1448,9 @@ function App() {
             </div>
             <Space wrap>
               <Tag color={llmChatOnly ? 'purple' : 'blue'}>{llmChatOnly ? 'Chat 模式' : 'Agent 模式'}</Tag>
-              <Tag color={previewStatusColor}>状态：{previewStatus}</Tag>
-              <Tag>组件数：{componentCount}</Tag>
+              <Tag color={previewStatusColor}>● {previewStatus}</Tag>
+              <Tag>组件 {componentCount}</Tag>
+              <div className="toolbar-divider" />
               <Button onClick={() => openDebugDrawer('json')}>协议 JSON</Button>
               <Button onClick={() => openDebugDrawer('store')}>状态树</Button>
               <Badge count={errorCount} size="small">
@@ -1473,7 +1474,10 @@ function App() {
                     </Text>
                   </div>
                 </div>
-                <Space>
+                <Space className="preview-tools">
+                  <span className="preview-tool active">桌面</span>
+                  <span className="preview-tool">移动</span>
+                  <span className="preview-zoom">100%</span>
                   {isStreaming ? <Spin size="small" /> : null}
                   <Tag color={previewStatusColor}>{previewStatus}</Tag>
                 </Space>
@@ -1537,7 +1541,7 @@ function App() {
 
         <Drawer
           title="调试面板"
-          width={680}
+          size="large"
           open={debugDrawerOpen}
           onClose={() => setDebugDrawerOpen(false)}
           destroyOnClose={false}

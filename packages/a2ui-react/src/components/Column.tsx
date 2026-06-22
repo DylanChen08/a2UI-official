@@ -1,5 +1,6 @@
 import React, { ReactNode, type CSSProperties } from 'react';
 import { mergeComponentStyles } from './mergeComponentStyles';
+import { normalizeReactChildren } from './normalizeReactChildren';
 
 export interface ColumnProps {
   id: string;
@@ -37,16 +38,7 @@ export const Column: React.FC<ColumnProps> = ({
     stretch: 'stretch'
   };
 
-  // 渲染子元素
-  const renderChildren = () => {
-    // 如果 children 是数组，直接渲染（这是 treeBuild 后的情况）
-    if (Array.isArray(children)) {
-      return children;
-    }
-    
-    // 其他情况，直接渲染 children
-    return children;
-  };
+  const renderChildren = () => normalizeReactChildren(children);
 
   const distributesMainSpace =
     distribution === 'spaceBetween' ||

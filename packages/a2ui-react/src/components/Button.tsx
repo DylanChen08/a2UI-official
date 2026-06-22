@@ -1,6 +1,7 @@
 import React, { type CSSProperties } from 'react';
 import { mergeComponentStyles } from './mergeComponentStyles';
 import type { DataModelUpdatePayload } from 'a2ui-core';
+import { normalizeReactChildren } from './normalizeReactChildren';
 
 /** Client-side open URL; mirrors optional userAction.openLink for transport. */
 export interface OpenLinkSpec {
@@ -61,6 +62,7 @@ export const Button: React.FC<ButtonProps> = ({
     variantProp ??
     (primary === true ? 'primary' : primary === false ? 'secondary' : 'outline');
   const displayText = text?.literalString || text?.path || '';
+  const normalizedChildren = normalizeReactChildren(children);
 
   // debugger;
   const variantStyles: Record<string, React.CSSProperties> = {
@@ -132,7 +134,7 @@ export const Button: React.FC<ButtonProps> = ({
         styles
       )}
     >
-      {children != null && children !== false ? children : displayText}
+      {normalizedChildren != null && normalizedChildren !== false ? normalizedChildren : displayText}
     </button>
   );
 };

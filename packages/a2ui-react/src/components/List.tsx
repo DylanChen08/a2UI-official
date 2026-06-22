@@ -1,5 +1,6 @@
 import React, { ReactNode, type CSSProperties } from 'react';
 import { mergeComponentStyles } from './mergeComponentStyles';
+import { normalizeReactChildren } from './normalizeReactChildren';
 
 export interface ListProps {
   id: string;
@@ -30,12 +31,7 @@ export const List: React.FC<ListProps> = ({
     stretch: 'stretch'
   };
 
-  const renderChildren = () => {
-    if (Array.isArray(children)) {
-      return children;
-    }
-    return children;
-  };
+  const renderChildren = () => normalizeReactChildren(children);
 
   return (
     <div

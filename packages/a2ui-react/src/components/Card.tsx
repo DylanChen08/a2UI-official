@@ -1,5 +1,6 @@
 import React, { type CSSProperties } from 'react';
 import { mergeComponentStyles } from './mergeComponentStyles';
+import { normalizeReactChildren } from './normalizeReactChildren';
 
 export interface CardProps {
   id?: string;
@@ -31,6 +32,7 @@ export const Card: React.FC<CardProps> = ({
 }) => {
   const displayTitle = title?.literalString || title?.path || '';
   const displaySubtitle = subtitle?.literalString || subtitle?.path || '';
+  const normalizedChildren = normalizeReactChildren(children);
 
   return (
     <div
@@ -59,7 +61,7 @@ export const Card: React.FC<CardProps> = ({
           )}
         </div>
       )}
-      {children}
+      {normalizedChildren}
     </div>
   );
 };
