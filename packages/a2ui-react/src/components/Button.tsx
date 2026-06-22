@@ -62,7 +62,7 @@ export const Button: React.FC<ButtonProps> = ({
     (primary === true ? 'primary' : primary === false ? 'secondary' : 'outline');
   const displayText = text?.literalString || text?.path || '';
 
-  debugger;
+  // debugger;
   const variantStyles: Record<string, React.CSSProperties> = {
     primary: {
       backgroundColor: '#007bff',

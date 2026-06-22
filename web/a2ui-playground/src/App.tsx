@@ -11,11 +11,16 @@ import {
   Flex,
   Space,
   Divider,
-  Modal,
-  Switch,
   Tag,
   Collapse,
-  message
+  message,
+  ConfigProvider,
+  Layout,
+  Drawer,
+  Tabs,
+  Badge,
+  Tooltip,
+  Segmented
 } from 'antd';
 import ReactDOM from 'react-dom/client';
 import { init, a2uiParser, A2UIMessage, type DataModelUpdatePayload } from 'a2ui-core';
@@ -30,8 +35,10 @@ import mockLocalActionTextDemo from '../../../packages/a2ui-core/mock/local-acti
 import mockAgentBack from '../../../packages/a2ui-core/mock/agent-back.json';
 import { StreamSimulator } from './mock/stream-simulator';
 import { buildA2uiProtocolSnapshot } from './buildA2uiProtocolSnapshot';
+import './App.css';
 
 const { Title, Text } = Typography;
+const { Sider, Header, Content } = Layout;
 const { Option } = Select;
 const { TextArea } = Input;
 
@@ -123,6 +130,49 @@ const DEFAULT_MULTIMODAL_USER_PROMPT =
 
 const MAX_CHAT_IMAGES = 6;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+const SCENARIO_OPTIONS = [
+  {
+    value: 'complex-nested-tree',
+    label: '复杂嵌套树',
+    description: '测试多层嵌套组件、布局容器与基础文本渲染。'
+  },
+  {
+    value: 'row-column-mixed',
+    label: '行列混排',
+    description: '测试 Row / Column 混合布局与响应式结构。'
+  },
+  {
+    value: 'card-demo',
+    label: '卡片示例',
+    description: '生成典型内容卡片，适合检查容器、标题和操作区。'
+  },
+  {
+    value: 'data-binding-smoke',
+    label: '数据绑定',
+    description: '验证 dataModel 绑定、局部更新和动态文案刷新。'
+  },
+  {
+    value: 'list-template-smoke',
+    label: '列表模板',
+    description: '测试列表模板渲染和重复项结构。'
+  },
+  {
+    value: 'cart-list-smoke',
+    label: '购物车列表',
+    description: '生成购物车条目，验证列表、价格和操作交互。'
+  },
+  {
+    value: 'local-action-text-demo',
+    label: '本地动作',
+    description: '测试本地 action 触发 dataModel 更新。'
+  },
+  {
+    value: 'agent-back',
+    label: 'Agent Back',
+    description: '测试列布局、文案和按钮组合的基础 Agent 返回。'
+  }
+];
 
 function readFileAsBase64Data(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -236,6 +286,64 @@ function formatAgentLlmRawDisplay(raw: string): string {
   } catch {
     return raw;
   }
+}
+
+function getSearchMatchCount(text: string, keyword: string): number {
+  const q = keyword.trim().toLowerCase();
+  if (!q) return 0;
+  return text
+    .split(/\r?\n/)
+    .filter((line) => line.toLowerCase().includes(q)).length;
+}
+
+function JsonViewer({
+  title,
+  description,
+  value,
+  search,
+  onSearch
+}: {
+  title: string;
+  description?: React.ReactNode;
+  value: string;
+  search: string;
+  onSearch: (value: string) => void;
+}) {
+  const matchCount = getSearchMatchCount(value, search);
+  const copyValue = async () => {
+    try {
+      await navigator.clipboard.writeText(value || '');
+      message.success('已复制');
+    } catch {
+      message.error('复制失败');
+    }
+  };
+
+  return (
+    <div className="debug-block">
+      <Flex justify="space-between" align="center" gap={12} wrap="wrap">
+        <div>
+          <Text strong>{title}</Text>
+          {description ? <div className="debug-desc">{description}</div> : null}
+        </div>
+        <Space>
+          {search.trim() ? <Tag color="blue">匹配 {matchCount} 行</Tag> : null}
+          <Button size="small" onClick={copyValue} disabled={!value}>
+            复制
+          </Button>
+        </Space>
+      </Flex>
+      <Input.Search
+        allowClear
+        size="middle"
+        placeholder="搜索字段，例如 component / props / id"
+        value={search}
+        onChange={(e) => onSearch(e.target.value)}
+        className="debug-search"
+      />
+      <pre className={search.trim() ? 'debug-pre is-searching' : 'debug-pre'}>{value || '-'}</pre>
+    </div>
+  );
 }
 
 /** 增量解析 AG-UI SSE：`data: {...}\\n\\n` */
@@ -352,9 +460,9 @@ function App() {
   const storeRef = useRef<any>(null);
   const [storeState, setStoreState] = useState<any>(null);
   const [componentTree, setComponentTree] = useState<any>(null);
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isErrorModalVisible, setIsErrorModalVisible] = useState(false);
-  const [isProtocolModalVisible, setIsProtocolModalVisible] = useState(false);
+  const [debugDrawerOpen, setDebugDrawerOpen] = useState(false);
+  const [activeDebugTab, setActiveDebugTab] = useState('json');
+  const [debugSearch, setDebugSearch] = useState('');
   /** 最近一次 /api/agent：CUSTOM a2ui.llm.raw 与写入解析器的 JSONL 全文（成功/失败/中止均尽量保留） */
   const [agentProtocolView, setAgentProtocolView] = useState<{ llm: string; jsonl: string }>({
     llm: '',
@@ -375,6 +483,8 @@ function App() {
   const previewRootRef = useRef<ReturnType<typeof ReactDOM.createRoot> | null>(null);
   const threadIdRef = useRef(`thread-${crypto.randomUUID?.() ?? Date.now()}`);
   const abortRef = useRef<AbortController | null>(null);
+
+  const selectedScenario = SCENARIO_OPTIONS.find((item) => item.value === scenario) ?? SCENARIO_OPTIONS[0];
 
   const onPickImages = () => fileInputRef.current?.click();
 
@@ -479,6 +589,10 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (llmChatOnly) {
+      previewRootRef.current?.render(null);
+      return;
+    }
     const el = renderRef.current;
     if (!el) return;
     if (!previewRootRef.current) {
@@ -487,13 +601,9 @@ function App() {
     if (componentTree) {
       previewRootRef.current.render(componentTree);
     } else {
-      previewRootRef.current.render(
-        <div style={{ textAlign: 'center', color: '#999', padding: 24 }}>
-          暂无 A2UI 预览。左侧发送消息，将通过 SSE 流式接收并渲染（需本机运行 <code>pnpm dev:server</code>，默认端口 3847）。
-        </div>
-      );
+      previewRootRef.current.render(null);
     }
-  }, [componentTree]);
+  }, [componentTree, llmChatOnly]);
 
   /** Ctrl/⌘ + 点击预览区：将命中的 A2UI 组件 id 追加到左侧输入框（避免与普通点击/按钮冲突） */
   const handlePreviewPointerDownCapture = useCallback(
@@ -1015,564 +1125,506 @@ function App() {
     }
   };
 
-  const showModal = () => setIsModalVisible(true);
-  const handleCancel = () => setIsModalVisible(false);
-  const showErrorModal = () => setIsErrorModalVisible(true);
-  const handleErrorModalCancel = () => setIsErrorModalVisible(false);
-  const showProtocolModal = () => setIsProtocolModalVisible(true);
-  const handleProtocolModalCancel = () => setIsProtocolModalVisible(false);
+  const openDebugDrawer = (tab: string) => {
+    setActiveDebugTab(tab);
+    setDebugDrawerOpen(true);
+  };
+
+  const applyPromptExample = (prompt: string) => {
+    setChatInput(prompt);
+    window.setTimeout(() => chatInputRef.current?.focus(), 0);
+  };
+
+  const storeSnapshot = storeRef.current?.getState?.() ?? storeState;
+  const currentProtocolSnapshot = storeSnapshot
+    ? JSON.stringify(buildA2uiProtocolSnapshot(storeSnapshot), null, 2)
+    : '—';
+  const storeJson = storeSnapshot ? JSON.stringify(storeSnapshot, null, 2) : '';
+  const errorEntries = Object.entries(storeSnapshot?.errorMap || {}) as Array<[string, any]>;
+  const errorCount = errorEntries.length;
+  const componentCount = Object.keys(storeSnapshot?.hydrateNodeMap || {}).length;
+  const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant');
+  const lastRunFailed =
+    !!lastAssistant?.content &&
+    (lastAssistant.content.includes('请求失败') ||
+      lastAssistant.content.includes('客户端错误') ||
+      (lastAssistant.a2uiPhase === 'done' && !a2uiDoneTagOk(lastAssistant.content)));
+  const previewStatus = llmChatOnly
+    ? 'Chat 模式'
+    : isStreaming
+      ? '生成中'
+      : lastRunFailed || errorCount > 0
+        ? '需检查'
+        : componentTree
+          ? '已完成'
+          : '待生成';
+  const previewStatusColor =
+    previewStatus === '已完成'
+      ? 'success'
+      : previewStatus === '需检查'
+        ? 'error'
+        : previewStatus === '生成中'
+          ? 'processing'
+          : 'default';
+  const errorsJson = errorCount
+    ? JSON.stringify(
+        errorEntries.map(([id, error]) => ({ id, ...error })),
+        null,
+        2
+      )
+    : '';
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: '#f5f5f5' }}>
-      <div
-        style={{
-          width: 420,
-          minWidth: 320,
-          borderRight: '1px solid #e8e8e8',
-          display: 'flex',
-          flexDirection: 'column',
-          background: '#fff'
-        }}
-      >
-        <div style={{ padding: '16px 16px 8px' }}>
-          <Flex justify="space-between" align="flex-start" gap={12}>
-            <div style={{ flex: 1 }}>
-              <Title level={4} style={{ margin: 0 }}>
-                Agent 对话
+    <ConfigProvider
+      theme={{
+        token: {
+          colorPrimary: '#1677ff',
+          colorBgLayout: '#f5f7fb',
+          colorBorder: '#e5e7eb',
+          colorText: '#1f2937',
+          colorTextSecondary: '#6b7280',
+          borderRadius: 10,
+          fontSize: 14
+        },
+        components: {
+          Button: { borderRadius: 8, controlHeight: 34 },
+          Card: { borderRadiusLG: 12 },
+          Input: { borderRadius: 8 },
+          Select: { borderRadius: 8 }
+        }
+      }}
+    >
+      <Layout className="app-shell">
+        <Sider width={360} className="agent-sider">
+          <div className="agent-header">
+            <div>
+              <Title level={4} className="agent-title">
+                Agent Playground
               </Title>
-              <Text type="secondary" style={{ fontSize: 12 }}>
+              <Text type="secondary">A2UI 生成与调试控制台</Text>
+            </div>
+            <Tag color={llmChatOnly ? 'purple' : 'blue'}>{llmChatOnly ? 'Chat' : 'Agent'}</Tag>
+          </div>
+
+          <div className="panel-section">
+            <Flex justify="space-between" align="center" className="section-title">
+              <Text strong>运行配置</Text>
+              <Tooltip title="Agent 会请求 /api/agent 并流式渲染 A2UI；Chat 只请求 /api/chat，不更新预览。">
+                <Text type="secondary">说明</Text>
+              </Tooltip>
+            </Flex>
+            <Segmented
+              block
+              value={llmChatOnly ? 'chat' : 'agent'}
+              options={[
+                { label: 'Agent', value: 'agent' },
+                { label: 'Chat', value: 'chat' }
+              ]}
+              onChange={(value) => setLlmChatOnly(value === 'chat')}
+            />
+            <div className="config-meta">
+              <Text type="secondary">
                 {llmChatOnly
-                  ? '已开启「仅模型对话」：请求 POST /api/chat，不加载 A2UI。'
-                  : '右侧为 A2UI 预览；多轮对话可在同一画布上微调（后续轮次会带上上一轮协议 JSON）。服务端将 JSONL 切片为 CUSTOM / a2ui.jsonl.chunk 流式推送。'}
+                  ? '仅模型对话：不会请求 /api/agent，也不会更新右侧 A2UI 画布。'
+                  : 'Agent 模式：支持多轮微调、图片输入和 SSE 协议流式渲染。'}
               </Text>
             </div>
-            <Flex align="center" gap={8} style={{ flexShrink: 0 }}>
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                仅模型对话
-              </Text>
-              <Switch checked={llmChatOnly} onChange={setLlmChatOnly} />
+          </div>
+
+          <div className="panel-section">
+            <Flex justify="space-between" align="center" className="section-title">
+              <Text strong>Mock 场景</Text>
+              <Tooltip title="本地模拟流会直接将选中 mock 写入解析器，用于快速检查渲染与 store。">
+                <Text type="secondary">调试</Text>
+              </Tooltip>
             </Flex>
-          </Flex>
-        </div>
-        <div style={{ padding: '0 16px 12px' }}>
-          <Text strong style={{ display: 'block', marginBottom: 6 }}>
-            本地模拟流 · 场景
-          </Text>
-          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
-            {llmChatOnly
-              ? '关闭「仅模型对话」后可选择场景并走 /api/agent 或本地模拟流。'
-              : '通过 /api/agent 时服务端每次随机选复合场景 mock；「本地模拟流」使用下方选择。'}
-          </Text>
-          <Select
-            value={scenario}
-            style={{ width: '100%' }}
-            onChange={setScenario}
-            disabled={llmChatOnly}
-          >
-            <Option value="complex-nested-tree">Complex Nested Tree</Option>
-            <Option value="row-column-mixed">Row and Column Mixed</Option>
-            <Option value="card-demo">Card Demo</Option>
-            <Option value="data-binding-smoke">Data binding</Option>
-            <Option value="list-template-smoke">List + template</Option>
-            <Option value="cart-list-smoke">Shopping cart list</Option>
-            <Option value="local-action-text-demo">Local action → dataModel</Option>
-            <Option value="agent-back">Agent back（测试列+文案+按钮）</Option>
-          </Select>
-        </div>
-        <Divider style={{ margin: 0 }} />
-        <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
-          {messages.length === 0 ? (
-            <Text type="secondary">
-              {llmChatOnly
-                ? '输入消息后发送，将调用 POST /api/chat（需在服务端 .env 配置 OPENAI_API_KEY）。'
-                : '可附加图片（多模态），输入消息后发送，将通过 /api/agent 流式加载右侧预览；可继续发消息做文案/布局微调。'}
-            </Text>
-          ) : (
-            <Flex vertical gap={12} style={{ width: '100%' }}>
-              {messages.map((m) => (
-                <Flex key={m.id} justify={m.role === 'user' ? 'flex-end' : 'flex-start'}>
-                  <Card
-                    size="small"
-                    styles={{
-                      body: { padding: '8px 12px' }
-                    }}
-                    style={{
-                      maxWidth: '100%',
-                      background: m.role === 'user' ? '#e6f4ff' : '#fafafa',
-                      borderColor: '#f0f0f0'
-                    }}
-                  >
+            <Select value={scenario} onChange={setScenario} disabled={llmChatOnly} className="full-width">
+              {SCENARIO_OPTIONS.map((item) => (
+                <Option key={item.value} value={item.value}>
+                  {item.label}
+                </Option>
+              ))}
+            </Select>
+            <div className="scenario-desc">
+              <Text strong>{selectedScenario.label}</Text>
+              <Text type="secondary">{selectedScenario.description}</Text>
+            </div>
+            <Button
+              block
+              type="primary"
+              ghost
+              loading={isStreaming && !llmChatOnly}
+              onClick={() => void simulateStream()}
+              disabled={isStreaming || llmChatOnly}
+            >
+              {isStreaming && !llmChatOnly ? '正在生成...' : componentTree ? '重新生成 Mock 页面' : '生成 Mock 页面'}
+            </Button>
+          </div>
+
+          <div className="history-section">
+            <Flex justify="space-between" align="center" className="section-title">
+              <Text strong>生成记录</Text>
+              <Tag color={previewStatusColor}>{previewStatus}</Tag>
+            </Flex>
+            {messages.length === 0 ? (
+              componentTree ? (
+                <div className="message-card assistant">
+                  <Flex justify="space-between" align="center" gap={8}>
+                    <Text strong>Mock 流</Text>
+                    <Tag color="success">已完成</Tag>
+                  </Flex>
+                  <div className="message-content">
+                    {selectedScenario.label} 已渲染，当前组件数 {componentCount}。
+                  </div>
+                </div>
+              ) : (
+                <div className="empty-history">
+                  <Text type="secondary">
+                    {llmChatOnly
+                      ? '发送消息后会在这里显示模型回复。'
+                      : '发送 Prompt 或生成 Mock 后会在这里显示请求、流式状态和完成结果。'}
+                  </Text>
+                </div>
+              )
+            ) : (
+              <Flex vertical gap={10}>
+                {messages.map((m) => (
+                  <div key={m.id} className={m.role === 'user' ? 'message-card user' : 'message-card assistant'}>
+                    <Flex justify="space-between" align="center" gap={8}>
+                      <Text strong>{m.role === 'user' ? '你' : 'Agent'}</Text>
+                      {m.role === 'assistant' && m.a2uiPhase === 'done' && m.content ? (
+                        <Tag color={a2uiDoneTagOk(m.content) ? 'success' : 'error'}>
+                          {a2uiDoneTagOk(m.content) ? '已完成' : '未正常完成'}
+                        </Tag>
+                      ) : null}
+                    </Flex>
                     {m.role === 'assistant' && m.a2uiPhase === 'awaiting_model' && (
-                      <Flex align="center" gap={8}>
+                      <Flex align="center" gap={8} className="message-status">
                         <Spin size="small" />
-                        <Text type="secondary">模型返回中…</Text>
+                        <Text type="secondary">模型返回中...</Text>
                       </Flex>
                     )}
                     {m.role === 'assistant' && m.a2uiPhase === 'rendering_protocol' && (
-                      <Flex align="center" gap={8}>
+                      <Flex align="center" gap={8} className="message-status">
                         <Spin size="small" />
-                        <Text type="secondary">协议渲染中…</Text>
+                        <Text type="secondary">协议渲染中...</Text>
                       </Flex>
                     )}
                     {m.role === 'assistant' && !m.a2uiPhase && m.streamPhase === 'connecting' && (
-                      <Flex align="center" gap={8} style={{ marginBottom: m.content ? 8 : 0 }}>
+                      <Flex align="center" gap={8} className="message-status">
                         <Spin size="small" />
-                        <Text type="secondary">正在连接模型…</Text>
+                        <Text type="secondary">正在连接模型...</Text>
                       </Flex>
                     )}
-                    {m.role === 'assistant' &&
-                      !m.a2uiPhase &&
-                      m.streamPhase === 'streaming' &&
-                      !m.content && (
-                        <Flex align="center" gap={8}>
-                          <Spin size="small" />
-                          <Text type="secondary">正在生成…</Text>
-                        </Flex>
-                      )}
+                    {m.role === 'assistant' && !m.a2uiPhase && m.streamPhase === 'streaming' && !m.content && (
+                      <Flex align="center" gap={8} className="message-status">
+                        <Spin size="small" />
+                        <Text type="secondary">正在生成...</Text>
+                      </Flex>
+                    )}
                     {m.role === 'user' && m.attachments?.length ? (
-                      <Flex wrap="wrap" gap={8} style={{ marginBottom: m.content ? 8 : 0 }}>
+                      <Flex wrap="wrap" gap={8} className="message-images">
                         {m.attachments.map((a, idx) => (
-                          <img
-                            key={a.id ?? `${m.id}-img-${idx}`}
-                            alt=""
-                            src={`data:${a.mimeType};base64,${a.base64Data}`}
-                            style={{
-                              maxWidth: 160,
-                              maxHeight: 160,
-                              objectFit: 'cover',
-                              borderRadius: 4,
-                              border: '1px solid #d9d9d9'
-                            }}
-                          />
+                          <img key={a.id ?? `${m.id}-img-${idx}`} alt="" src={`data:${a.mimeType};base64,${a.base64Data}`} />
                         ))}
                       </Flex>
                     ) : null}
-                    {m.content || (m.role === 'user' && m.attachments?.length) ? (
-                      <div>
-                        {m.content ? (
-                          <Text style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                            {m.content}
-                          </Text>
-                        ) : null}
-                        {m.role === 'assistant' && m.a2uiPhase === 'done' && m.content ? (
-                          <Tag
-                            color={a2uiDoneTagOk(m.content) ? 'success' : 'error'}
-                            style={{ marginTop: 8 }}
-                          >
-                            {a2uiDoneTagOk(m.content) ? '已完成' : '未正常完成'}
-                          </Tag>
-                        ) : null}
-                      </div>
-                    ) : null}
+                    {m.content ? <div className="message-content">{m.content}</div> : null}
                     {m.role === 'assistant' && m.llmRawOutput && (
                       <Collapse
                         size="small"
-                        style={{ marginTop: m.content ? 8 : 0 }}
+                        className="raw-collapse"
                         items={[
                           {
                             key: 'llm-raw',
-                            label: '模型原始输出（调试）',
-                            children: (
-                              <pre
-                                style={{
-                                  whiteSpace: 'pre-wrap',
-                                  wordBreak: 'break-all',
-                                  maxHeight: 360,
-                                  overflow: 'auto',
-                                  fontSize: 11,
-                                  margin: 0
-                                }}
-                              >
-                                {m.llmRawOutput}
-                              </pre>
-                            )
+                            label: '模型原始输出',
+                            children: <pre className="raw-pre">{m.llmRawOutput}</pre>
                           }
                         ]}
                       />
                     )}
-                    {m.role === 'assistant' &&
-                      !m.a2uiPhase &&
-                      m.streamPhase === 'streaming' &&
-                      !!m.content && (
-                        <Text type="secondary" style={{ fontSize: 12, marginTop: 6 }}>
-                          输出中…
-                        </Text>
-                      )}
-                  </Card>
-                </Flex>
-              ))}
-            </Flex>
-          )}
-        </div>
-        <div style={{ padding: 16, borderTop: '1px solid #f0f0f0' }}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            style={{ display: 'none' }}
-            onChange={onImageFilesSelected}
-          />
-          {pendingAttachments.length > 0 ? (
-            <div
-              style={{
-                marginBottom: 10,
-                padding: '10px 12px',
-                background: '#fafafa',
-                border: '1px solid #f0f0f0',
-                borderRadius: 8
-              }}
-            >
-              <Flex justify="space-between" align="center" style={{ marginBottom: 8 }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  待发送图片（{pendingAttachments.length}/{MAX_CHAT_IMAGES}）
-                </Text>
-                <Button
-                  type="link"
-                  size="small"
-                  danger
-                  style={{ padding: 0, height: 'auto' }}
-                  onClick={() => setPendingAttachments([])}
-                >
-                  全部移除
-                </Button>
-              </Flex>
-              <Flex wrap="wrap" gap={10}>
-                {pendingAttachments.map((a, idx) => (
-                  <div
-                    key={a.id ?? `pending-${idx}`}
-                    style={{
-                      position: 'relative',
-                      width: 96,
-                      height: 96,
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                      border: '1px solid #d9d9d9',
-                      flexShrink: 0,
-                      background: '#fff'
-                    }}
-                  >
-                    <img
-                      alt=""
-                      src={`data:${a.mimeType};base64,${a.base64Data}`}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          display: 'block'
-                        }}
-                    />
-                    <button
-                      type="button"
-                      title="移除此图"
-                      aria-label="移除此图"
-                      onClick={() =>
-                        setPendingAttachments((prev) =>
-                          prev.filter((x, i) => (a.id != null ? x.id !== a.id : i !== idx))
-                        )
-                      }
-                      style={{
-                        position: 'absolute',
-                        top: 6,
-                        right: 6,
-                        width: 26,
-                        height: 26,
-                        border: 'none',
-                        borderRadius: '50%',
-                        background: 'rgba(0,0,0,0.55)',
-                        color: '#fff',
-                        cursor: 'pointer',
-                        fontSize: 16,
-                        lineHeight: 1,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 0,
-                        boxShadow: '0 1px 4px rgba(0,0,0,0.25)'
-                      }}
-                    >
-                      ×
-                    </button>
+                    {m.role === 'assistant' && !m.a2uiPhase && m.streamPhase === 'streaming' && !!m.content && (
+                      <Text type="secondary" className="streaming-text">
+                        输出中...
+                      </Text>
+                    )}
                   </div>
                 ))}
               </Flex>
-            </div>
-          ) : null}
-          <TextArea
-            ref={chatInputRef}
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            placeholder="输入消息…可点「附加图片」选择截图（多模态）；Enter 发送，Shift+Enter 换行"
-            autoSize={{ minRows: 2, maxRows: 6 }}
-            onPressEnter={(e) => {
-              if (!e.shiftKey) {
-                e.preventDefault();
-                void sendAgentMessage();
-              }
-            }}
-            disabled={isStreaming}
-          />
-          <Flex justify="space-between" align="center" style={{ marginTop: 8 }}>
-            <Button
-              onClick={onPickImages}
-              disabled={isStreaming || pendingAttachments.length >= MAX_CHAT_IMAGES}
-            >
-              附加图片
-            </Button>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              最多 {MAX_CHAT_IMAGES} 张，单张 ≤ {MAX_IMAGE_BYTES / (1024 * 1024)}MB
-            </Text>
-            <Button type="primary" loading={isStreaming} onClick={() => void sendAgentMessage()}>
-              发送
-            </Button>
-          </Flex>
-        </div>
-      </div>
+            )}
+          </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, padding: 16 }}>
-        <Flex justify="space-between" align="center" style={{ marginBottom: 12 }} wrap="wrap" gap={8}>
-          <Title level={4} style={{ margin: 0 }}>
-            A2UI Playground
-          </Title>
-          <Space wrap>
-            <Button type="primary" onClick={showModal}>
-              View Store
-            </Button>
-            <Button danger onClick={showErrorModal}>
-              View Errors
-            </Button>
-            <Button onClick={showProtocolModal}>View A2UI JSON</Button>
-            <Button
-              type="dashed"
-              onClick={() => void simulateStream()}
-              disabled={isStreaming || llmChatOnly}
-            >
-              {isStreaming ? 'Streaming…' : '本地模拟流'}
-            </Button>
-          </Space>
-        </Flex>
-
-        <Card
-          title={
-            <Space wrap>
-              <span>{llmChatOnly ? 'A2UI 预览（已跳过）' : '预览区'}</span>
-              {!llmChatOnly && (
-                <Text type="secondary" style={{ fontSize: 12, fontWeight: 'normal' }}>
-                  Ctrl/⌘ + 点击元素可将组件 id 写入左侧输入框
-                </Text>
-              )}
-              {isStreaming && <Spin size="small" />}
-            </Space>
-          }
-          styles={{ body: { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } }}
-          style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}
-        >
-          {llmChatOnly ? (
-            <div
-              style={{
-                flex: 1,
-                minHeight: 280,
-                border: '1px dashed #d9d9d9',
-                padding: 24,
-                borderRadius: 4,
-                background: '#fafafa',
-                color: '#666'
-              }}
-            >
-              <Text>
-                当前为<strong>仅模型对话</strong>模式：不请求 <Text code>/api/agent</Text>，不渲染
-                A2UI。请在左侧查看助手回复；配置见服务端{' '}
-                <Text code>.env</Text> 中 <Text code>OPENAI_API_KEY</Text>、
-                <Text code>OPENAI_BASE_URL</Text>、<Text code>OPENAI_MODEL</Text>。
-              </Text>
-            </div>
-          ) : (
-            <div
-              ref={renderRef}
-              onPointerDownCapture={handlePreviewPointerDownCapture}
-              style={{
-                flex: 1,
-                minHeight: 280,
-                border: '1px dashed #ccc',
-                padding: 20,
-                borderRadius: 4,
-                overflow: 'auto',
-                background: '#fff',
-                cursor: 'default'
-              }}
+          <div className="prompt-panel">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden-file"
+              onChange={onImageFilesSelected}
             />
-          )}
-        </Card>
-      </div>
+            <Flex justify="space-between" align="center" className="section-title">
+              <Text strong>输入 Prompt</Text>
+              <Button type="link" size="small" onClick={() => setChatInput('')} disabled={!chatInput || isStreaming}>
+                清空
+              </Button>
+            </Flex>
+            <Space wrap className="prompt-examples">
+              {[
+                ['统计页', '生成一个用户统计信息页面，包含关键指标和刷新按钮'],
+                ['表单', '生成一个用户信息表单，包含姓名、邮箱、年龄和提交按钮'],
+                ['Dashboard', '生成一个设备监控 Dashboard，包含状态卡片和告警列表'],
+                ['错误状态', '生成一个渲染失败后的错误状态页面，包含重试操作']
+              ].map(([label, prompt]) => (
+                <Tag key={label} className="prompt-chip" onClick={() => applyPromptExample(prompt)}>
+                  {label}
+                </Tag>
+              ))}
+            </Space>
+            {pendingAttachments.length > 0 ? (
+              <div className="attachment-panel">
+                <Flex justify="space-between" align="center">
+                  <Text type="secondary">待发送图片（{pendingAttachments.length}/{MAX_CHAT_IMAGES}）</Text>
+                  <Button type="link" size="small" danger onClick={() => setPendingAttachments([])}>
+                    全部移除
+                  </Button>
+                </Flex>
+                <Flex wrap="wrap" gap={10} className="attachment-list">
+                  {pendingAttachments.map((a, idx) => (
+                    <div key={a.id ?? `pending-${idx}`} className="attachment-thumb">
+                      <img alt="" src={`data:${a.mimeType};base64,${a.base64Data}`} />
+                      <button
+                        type="button"
+                        title="移除此图"
+                        aria-label="移除此图"
+                        onClick={() =>
+                          setPendingAttachments((prev) =>
+                            prev.filter((x, i) => (a.id != null ? x.id !== a.id : i !== idx))
+                          )
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </Flex>
+              </div>
+            ) : null}
+            <TextArea
+              ref={chatInputRef}
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              placeholder="请描述你想生成的页面、组件或交互..."
+              autoSize={{ minRows: 3, maxRows: 6 }}
+              onPressEnter={(e) => {
+                if (!e.shiftKey) {
+                  e.preventDefault();
+                  void sendAgentMessage();
+                }
+              }}
+              disabled={isStreaming}
+            />
+            <Flex justify="space-between" align="center" className="prompt-actions">
+              <Space>
+                <Button onClick={onPickImages} disabled={isStreaming || pendingAttachments.length >= MAX_CHAT_IMAGES}>
+                  上传图片
+                </Button>
+                <Text type="secondary">≤ {MAX_IMAGE_BYTES / (1024 * 1024)}MB/张</Text>
+              </Space>
+              <Button type="primary" loading={isStreaming} onClick={() => void sendAgentMessage()}>
+                {isStreaming ? '发送中...' : '发送'}
+              </Button>
+            </Flex>
+          </div>
+        </Sider>
 
-      <Modal
-        title="Store State"
-        open={isModalVisible}
-        onCancel={handleCancel}
-        footer={[
-          <Button key="close" onClick={handleCancel}>
-            Close
-          </Button>
-        ]}
-        width={800}
-      >
-        {storeState ? (
-          <>
-            <div style={{ marginBottom: 15, padding: 10, backgroundColor: '#f0f2f5', borderRadius: 4 }}>
-              <Text strong>组件总数: </Text>
-              <Text>{Object.keys(storeState.hydrateNodeMap || {}).length}</Text>
+        <Layout className="workspace-layout">
+          <Header className="top-toolbar">
+            <div>
+              <Title level={4} className="workspace-title">
+                A2UI Playground
+              </Title>
+              <Text type="secondary">实时渲染 Agent 输出的 A2UI 页面</Text>
             </div>
-            {storeState.dataModelBySurfaceId &&
-              Object.keys(storeState.dataModelBySurfaceId).length > 0 && (
-                <div style={{ marginBottom: 15, padding: 10, backgroundColor: '#e6f7ff', borderRadius: 4 }}>
-                  <Text strong>数据模型 (dataModelBySurfaceId)</Text>
-                  <pre
-                    style={{
-                      marginTop: 8,
-                      marginBottom: 0,
-                      background: '#fff',
-                      padding: 10,
-                      borderRadius: 4,
-                      overflow: 'auto',
-                      maxHeight: 200
-                    }}
-                  >
-                    {JSON.stringify(storeState.dataModelBySurfaceId, null, 2)}
-                  </pre>
+            <Space wrap>
+              <Tag color={llmChatOnly ? 'purple' : 'blue'}>{llmChatOnly ? 'Chat 模式' : 'Agent 模式'}</Tag>
+              <Tag color={previewStatusColor}>状态：{previewStatus}</Tag>
+              <Tag>组件数：{componentCount}</Tag>
+              <Button onClick={() => openDebugDrawer('json')}>协议 JSON</Button>
+              <Button onClick={() => openDebugDrawer('store')}>状态树</Button>
+              <Badge count={errorCount} size="small">
+                <Button danger={errorCount > 0} onClick={() => openDebugDrawer('errors')}>
+                  错误
+                </Button>
+              </Badge>
+            </Space>
+          </Header>
+
+          <Content className="workspace-content">
+            <div className="preview-shell">
+              <Flex justify="space-between" align="center" gap={12} wrap="wrap" className="preview-header">
+                <div>
+                  <Text strong>{llmChatOnly ? 'A2UI 预览已跳过' : 'Preview'}</Text>
+                  <div>
+                    <Text type="secondary">
+                      {llmChatOnly
+                        ? '当前只进行模型对话，右侧画布不会接收 A2UI 协议。'
+                        : 'Ctrl/⌘ + 点击预览元素可将组件 id 写入左侧输入框。'}
+                    </Text>
+                  </div>
                 </div>
-              )}
-            <pre
-              style={{
-                background: '#f5f5f5',
-                padding: 15,
-                borderRadius: 5,
-                overflow: 'auto',
-                maxHeight: 500
-              }}
-            >
-              {JSON.stringify(storeState, null, 2)}
-            </pre>
-          </>
-        ) : (
-          <Text type="secondary">Loading store...</Text>
-        )}
-      </Modal>
+                <Space>
+                  {isStreaming ? <Spin size="small" /> : null}
+                  <Tag color={previewStatusColor}>{previewStatus}</Tag>
+                </Space>
+              </Flex>
 
-      <Modal
-        title="Errors"
-        open={isErrorModalVisible}
-        onCancel={handleErrorModalCancel}
-        footer={[
-          <Button key="close" onClick={handleErrorModalCancel}>
-            Close
-          </Button>
-        ]}
-        width={600}
-      >
-        {storeState && Object.keys(storeState.errorMap || {}).length > 0 ? (
-          <div>
-            {Object.entries(storeState.errorMap).map(([errorId, error]: [string, any]) => (
-              <Alert
-                key={errorId}
-                message={error.type}
-                description={error.content}
-                type="error"
-                style={{ marginBottom: 10 }}
-              />
-            ))}
-          </div>
-        ) : (
-          <Text type="secondary">No errors</Text>
-        )}
-      </Modal>
+              {lastRunFailed || errorCount > 0 ? (
+                <Alert
+                  className="preview-alert"
+                  type="error"
+                  showIcon
+                  message="渲染需要检查"
+                  description="最近一次生成未正常完成，或 Store 中存在解析/渲染错误。可打开协议 JSON 与错误面板定位问题。"
+                  action={
+                    <Space>
+                      <Button size="small" onClick={() => openDebugDrawer('json')}>
+                        查看 JSON
+                      </Button>
+                      <Button size="small" danger onClick={() => openDebugDrawer('errors')}>
+                        查看错误
+                      </Button>
+                    </Space>
+                  }
+                />
+              ) : null}
 
-      <Modal
-        title="View A2UI JSON"
-        open={isProtocolModalVisible}
-        onCancel={handleProtocolModalCancel}
-        footer={[
-          <Button key="close" onClick={handleProtocolModalCancel}>
-            Close
-          </Button>
-        ]}
-        width={900}
-      >
-        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-          最近一次 <Text code>/api/agent</Text>：无论解析是否成功，均可查看模型完整输出与服务端下发的 JSONL（与解析器输入一致）。
-        </Text>
-        {agentProtocolView.llm ? (
-          <div style={{ marginBottom: 16 }}>
-            <Text strong style={{ display: 'block', marginBottom: 6 }}>
-              模型返回（完整）
-            </Text>
-            <pre
-              style={{
-                background: '#f5f5f5',
-                padding: 12,
-                borderRadius: 4,
-                overflow: 'auto',
-                maxHeight: 280,
-                margin: 0,
-                fontSize: 12,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
-              }}
-            >
-              {formatAgentLlmRawDisplay(agentProtocolView.llm)}
-            </pre>
-          </div>
-        ) : null}
-        {agentProtocolView.jsonl ? (
-          <div style={{ marginBottom: 16 }}>
-            <Text strong style={{ display: 'block', marginBottom: 6 }}>
-              下发 JSONL（协议流，与解析器输入一致）
-            </Text>
-            <pre
-              style={{
-                background: '#f0f7ff',
-                padding: 12,
-                borderRadius: 4,
-                overflow: 'auto',
-                maxHeight: 280,
-                margin: 0,
-                fontSize: 12,
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word'
-              }}
-            >
-              {formatJsonlLinesPretty(agentProtocolView.jsonl)}
-            </pre>
-          </div>
-        ) : null}
-        {!agentProtocolView.llm && !agentProtocolView.jsonl ? (
-          <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
-            尚无最近一次 Agent 流记录（未发送 /api/agent 或请求失败）。以下为当前 store 反推协议：
-          </Text>
-        ) : (
-          <Divider plain style={{ margin: '12px 0' }}>
-            当前 store 反推（可选对照）
-          </Divider>
-        )}
-        <Text type="secondary" style={{ display: 'block', marginBottom: 8, fontSize: 12 }}>
-          由当前 store 中的 surface、组件 protocal 与数据模型反推，与原始下发 JSONL 的字段顺序或 path 可能略有差异。
-        </Text>
-        <pre
-          style={{
-            background: '#f5f5f5',
-            padding: 12,
-            borderRadius: 4,
-            overflow: 'auto',
-            maxHeight: 360,
-            margin: 0,
-            fontSize: 12
-          }}
+              <div className="preview-canvas-wrap">
+                {llmChatOnly ? (
+                  <div className="preview-empty">
+                    <div className="preview-empty-card">
+                      <div className="preview-empty-mark">CHAT</div>
+                      <div className="preview-empty-title">Chat 模式下不渲染 A2UI</div>
+                      <div className="preview-empty-desc">
+                        当前只进行模型对话，不会请求 <code>/api/agent</code> 或更新右侧画布。
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="preview-canvas-stack">
+                    {!componentTree ? (
+                      <div className="a2ui-preview-placeholder">
+                        <div className="preview-empty-card">
+                          <div className="preview-empty-mark">A2UI</div>
+                          <div className="preview-empty-title">等待 A2UI 预览</div>
+                          <div className="preview-empty-desc">
+                            左侧发送消息后，将通过 SSE 流式接收并渲染。服务端默认端口为 <code>3847</code>。
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
+                    <div
+                      ref={renderRef}
+                      onPointerDownCapture={handlePreviewPointerDownCapture}
+                      className="preview-canvas"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </Content>
+        </Layout>
+
+        <Drawer
+          title="调试面板"
+          width={680}
+          open={debugDrawerOpen}
+          onClose={() => setDebugDrawerOpen(false)}
+          destroyOnClose={false}
         >
-          {storeRef.current
-            ? JSON.stringify(buildA2uiProtocolSnapshot(storeRef.current.getState()), null, 2)
-            : '—'}
-        </pre>
-      </Modal>
-    </div>
+          <Tabs
+            activeKey={activeDebugTab}
+            onChange={setActiveDebugTab}
+            items={[
+              {
+                key: 'json',
+                label: '协议 JSON',
+                children: (
+                  <>
+                    <Text type="secondary" className="drawer-intro">
+                      最近一次 /api/agent 的模型原文、JSONL 协议流，以及当前 store 反推协议。
+                    </Text>
+                    {agentProtocolView.llm ? (
+                      <JsonViewer
+                        title="模型返回（完整）"
+                        value={formatAgentLlmRawDisplay(agentProtocolView.llm)}
+                        search={debugSearch}
+                        onSearch={setDebugSearch}
+                      />
+                    ) : null}
+                    {agentProtocolView.jsonl ? (
+                      <JsonViewer
+                        title="下发 JSONL"
+                        description="与解析器输入一致。"
+                        value={formatJsonlLinesPretty(agentProtocolView.jsonl)}
+                        search={debugSearch}
+                        onSearch={setDebugSearch}
+                      />
+                    ) : null}
+                    <Divider plain>当前 store 反推</Divider>
+                    <JsonViewer
+                      title="A2UI 协议快照"
+                      description="字段顺序或 path 可能与原始下发 JSONL 略有差异。"
+                      value={currentProtocolSnapshot}
+                      search={debugSearch}
+                      onSearch={setDebugSearch}
+                    />
+                  </>
+                )
+              },
+              {
+                key: 'store',
+                label: '状态树',
+                children: (
+                  <>
+                    <div className="store-summary">
+                      <Tag>组件总数：{componentCount}</Tag>
+                      <Tag>错误数：{errorCount}</Tag>
+                      <Tag>Surface：{Object.keys(storeSnapshot?.surfaceMap || {}).length}</Tag>
+                    </div>
+                    {storeSnapshot?.dataModelBySurfaceId &&
+                    Object.keys(storeSnapshot.dataModelBySurfaceId).length > 0 ? (
+                      <JsonViewer
+                        title="数据模型"
+                        value={JSON.stringify(storeSnapshot.dataModelBySurfaceId, null, 2)}
+                        search={debugSearch}
+                        onSearch={setDebugSearch}
+                      />
+                    ) : null}
+                    <JsonViewer title="Store State" value={storeJson} search={debugSearch} onSearch={setDebugSearch} />
+                  </>
+                )
+              },
+              {
+                key: 'errors',
+                label: `错误 ${errorCount}`,
+                children:
+                  errorCount > 0 ? (
+                    <Flex vertical gap={12}>
+                      {errorEntries.map(([errorId, error]) => (
+                        <Alert key={errorId} message={error.type} description={error.content} type="error" showIcon />
+                      ))}
+                      <JsonViewer title="Errors JSON" value={errorsJson} search={debugSearch} onSearch={setDebugSearch} />
+                    </Flex>
+                  ) : (
+                    <div className="debug-empty">当前没有错误</div>
+                  )
+              }
+            ]}
+          />
+        </Drawer>
+      </Layout>
+    </ConfigProvider>
   );
 }
 
