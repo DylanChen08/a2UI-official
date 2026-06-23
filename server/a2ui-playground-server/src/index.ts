@@ -8,6 +8,7 @@ import cors from 'koa-cors';
 import { createAgentRouter } from './routes/agent';
 import { createAntdIconsRouter } from './routes/antdIcons';
 import { createChatRouter } from './routes/chat';
+import { createMonitoringRouter } from './routes/monitoring';
 
 const app = new Koa();
 
@@ -28,12 +29,15 @@ app.use(
 const agentRouter = createAgentRouter();
 const antdIconsRouter = createAntdIconsRouter();
 const chatRouter = createChatRouter();
+const monitoringRouter = createMonitoringRouter();
 app.use(agentRouter.routes());
 app.use(agentRouter.allowedMethods());
 app.use(antdIconsRouter.routes());
 app.use(antdIconsRouter.allowedMethods());
 app.use(chatRouter.routes());
 app.use(chatRouter.allowedMethods());
+app.use(monitoringRouter.routes());
+app.use(monitoringRouter.allowedMethods());
 
 
 const PORT = Number(process.env.PORT || 3847);

@@ -1,0 +1,35 @@
+{
+  "id": "evt-1782123603338-duh3nhfg",
+  "timestamp": "2026-06-22T10:20:03.338Z",
+  "receivedAt": "2026-06-22T10:20:03.338Z",
+  "type": "error",
+  "level": "error",
+  "message": "Cannot read properties of undefined",
+  "source": "web",
+  "pageUrl": "http://localhost:3001/?view=monitoring",
+  "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/149.0.0.0 Safari/537.36",
+  "release": "a2ui-playground@1.0.0-local",
+  "environment": "development",
+  "tags": {
+    "feature": "monitoring-dashboard"
+  },
+  "contexts": {
+    "viewport": {
+      "width": 1512,
+      "height": 772,
+      "devicePixelRatio": 2
+    },
+    "error": {
+      "message": "Cannot read properties of undefined",
+      "name": "TypeError",
+      "stack": "TypeError: Cannot read properties of undefined\n    at MonitoringDashboard (MonitoringDashboard.tsx:88:12)"
+    },
+    "react": {
+      "componentStack": "\n    at MonitoringDashboard\n    at MonitoringErrorBoundary"
+    }
+  },
+  "extra": {
+    "eventId": "local-demo-event-id",
+    "component": "MonitoringDashboard"
+  }
+}

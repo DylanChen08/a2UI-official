@@ -35,6 +35,8 @@ import mockLocalActionTextDemo from '../../../packages/a2ui-core/mock/local-acti
 import mockAgentBack from '../../../packages/a2ui-core/mock/agent-back.json';
 import { StreamSimulator } from './mock/stream-simulator';
 import { buildA2uiProtocolSnapshot } from './buildA2uiProtocolSnapshot';
+import { MonitoringDashboard } from './monitoring/MonitoringDashboard';
+import { reportCustomMonitoringEvent, reportFrontendError } from './monitoring/client';
 import './App.css';
 
 const { Title, Text } = Typography;
@@ -189,6 +191,29 @@ function readFileAsBase64Data(file: File): Promise<string> {
 type AgentApiContentPart =
   | { type: 'text'; text: string }
   | { type: 'binary'; mimeType: string; data: string };
+
+type AppView = 'playground' | 'monitoring';
+
+function getInitialAppView(): AppView {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('view') === 'monitoring' ? 'monitoring' : 'playground';
+  } catch {
+    return 'playground';
+  }
+}
+
+function getMonitoringUrl(): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set('view', 'monitoring');
+  return url.toString();
+}
+
+function replaceUrlWithPlaygroundView() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('view');
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+}
 
 function parseSseDataLinesToEvents(text: string): unknown[] {
   const events: unknown[] = [];
@@ -457,6 +482,7 @@ async function consumeChatSse(
 }
 
 function App() {
+  const [activeView, setActiveView] = useState<AppView>(() => getInitialAppView());
   const storeRef = useRef<any>(null);
   const [storeState, setStoreState] = useState<any>(null);
   const [componentTree, setComponentTree] = useState<any>(null);
@@ -718,8 +744,13 @@ function App() {
       a2uiParser.endStream();
       a2uiParser.flushPendingRender();
       setStoreState(createdStore!.getState());
+      reportCustomMonitoringEvent('mock-render-complete', {
+        scenario,
+        componentCount: Object.keys(createdStore!.getState().hydrateNodeMap || {}).length
+      });
     } catch (error) {
       console.error('Stream error:', error);
+      reportFrontendError(error, { feature: 'mock-stream', scenario });
     } finally {
       setIsStreaming(false);
     }
@@ -747,6 +778,7 @@ function App() {
 
     try {
       if (llmChatOnly) {
+        reportCustomMonitoringEvent('chat-request-start', { hasAttachments: pendingAttachments.length > 0 });
         const openAiMessages = history.map((m) => {
           if (m.role === 'user' && m.attachments?.length) {
             const c =
@@ -891,6 +923,10 @@ function App() {
       }
 
       const assistantId = `a-${Date.now()}`;
+      reportCustomMonitoringEvent('agent-request-start', {
+        hasAttachments: pendingAttachments.length > 0,
+        historyLength: history.length
+      });
       a2uiAssistantIdForAbort = assistantId;
       agentLlmRawRef.current = '';
       agentJsonlAccumRef.current = '';
@@ -1077,6 +1113,11 @@ function App() {
             : m
         )
       );
+      reportCustomMonitoringEvent('agent-request-finished', {
+        failed: !!runError,
+        jsonlBytes: agentJsonlAccumRef.current.length,
+        componentCount: Object.keys(createdStore!.getState().hydrateNodeMap || {}).length
+      }, runError ? 'warning' : 'info');
     } catch (e) {
       if ((e as Error).name === 'AbortError') {
         if (a2uiAssistantIdForAbort) {
@@ -1095,6 +1136,7 @@ function App() {
         return;
       }
       if (a2uiAssistantIdForAbort) {
+        reportFrontendError(e, { feature: 'agent-request' });
         setAgentProtocolView({
           llm: agentLlmRawRef.current,
           jsonl: agentJsonlAccumRef.current
@@ -1112,6 +1154,7 @@ function App() {
         );
         return;
       }
+      reportFrontendError(e, { feature: 'chat-request' });
       setMessages((prev) => [
         ...prev,
         {
@@ -1128,6 +1171,16 @@ function App() {
   const openDebugDrawer = (tab: string) => {
     setActiveDebugTab(tab);
     setDebugDrawerOpen(true);
+  };
+
+  const openMonitoringDashboard = () => {
+    reportCustomMonitoringEvent('monitoring-entry-clicked');
+    window.open(getMonitoringUrl(), '_blank', 'noopener,noreferrer');
+  };
+
+  const backToPlayground = () => {
+    replaceUrlWithPlaygroundView();
+    setActiveView('playground');
   };
 
   const applyPromptExample = (prompt: string) => {
@@ -1194,6 +1247,9 @@ function App() {
         }
       }}
     >
+      {activeView === 'monitoring' ? (
+        <MonitoringDashboard onBack={backToPlayground} />
+      ) : (
       <Layout className="app-shell">
         <Sider width={336} className="agent-sider">
           <div className="agent-header">
@@ -1204,6 +1260,25 @@ function App() {
               <Text type="secondary">A2UI 生成与调试控制台</Text>
             </div>
             <Tag color={llmChatOnly ? 'purple' : 'blue'}>{llmChatOnly ? 'Chat' : 'Agent'}</Tag>
+          </div>
+
+          <div className="panel-section nav-section">
+            <Button
+              block
+              type={activeView === 'playground' ? 'primary' : 'default'}
+              ghost={activeView === 'playground'}
+              onClick={() => setActiveView('playground')}
+            >
+              Playground
+            </Button>
+            <Button
+              block
+              type={activeView === 'monitoring' ? 'primary' : 'default'}
+              ghost={activeView === 'monitoring'}
+              onClick={openMonitoringDashboard}
+            >
+              前端监控后台
+            </Button>
           </div>
 
           <div className="panel-section">
@@ -1442,22 +1517,39 @@ function App() {
           <Header className="top-toolbar">
             <div>
               <Title level={4} className="workspace-title">
-                A2UI Playground
+                {activeView === 'monitoring' ? 'A2UI Monitoring' : 'A2UI Playground'}
               </Title>
-              <Text type="secondary">实时渲染 Agent 输出的 A2UI 页面</Text>
+              <Text type="secondary">
+                {activeView === 'monitoring'
+                  ? '查看 Sentry 前端事件与本地 JSON 监控指标'
+                  : '实时渲染 Agent 输出的 A2UI 页面'}
+              </Text>
             </div>
             <Space wrap>
-              <Tag color={llmChatOnly ? 'purple' : 'blue'}>{llmChatOnly ? 'Chat 模式' : 'Agent 模式'}</Tag>
-              <Tag color={previewStatusColor}>● {previewStatus}</Tag>
-              <Tag>组件 {componentCount}</Tag>
+              {activeView === 'playground' ? (
+                <>
+                  <Tag color={llmChatOnly ? 'purple' : 'blue'}>{llmChatOnly ? 'Chat 模式' : 'Agent 模式'}</Tag>
+                  <Tag color={previewStatusColor}>● {previewStatus}</Tag>
+                  <Tag>组件 {componentCount}</Tag>
+                </>
+              ) : (
+                <Tag color="blue">本地落盘</Tag>
+              )}
               <div className="toolbar-divider" />
-              <Button onClick={() => openDebugDrawer('json')}>协议 JSON</Button>
-              <Button onClick={() => openDebugDrawer('store')}>状态树</Button>
-              <Badge count={errorCount} size="small">
-                <Button danger={errorCount > 0} onClick={() => openDebugDrawer('errors')}>
-                  错误
-                </Button>
-              </Badge>
+              {activeView === 'playground' ? (
+                <>
+                  <Button onClick={openMonitoringDashboard}>监控后台</Button>
+                  <Button onClick={() => openDebugDrawer('json')}>协议 JSON</Button>
+                  <Button onClick={() => openDebugDrawer('store')}>状态树</Button>
+                  <Badge count={errorCount} size="small">
+                    <Button danger={errorCount > 0} onClick={() => openDebugDrawer('errors')}>
+                      错误
+                    </Button>
+                  </Badge>
+                </>
+              ) : (
+                <Button onClick={() => setActiveView('playground')}>返回 Playground</Button>
+              )}
             </Space>
           </Header>
 
@@ -1628,6 +1720,7 @@ function App() {
           />
         </Drawer>
       </Layout>
+      )}
     </ConfigProvider>
   );
 }
