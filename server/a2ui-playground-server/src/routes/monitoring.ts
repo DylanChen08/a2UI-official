@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import crypto from 'crypto';
 import type { Context } from 'koa';
 import Router from 'koa-router';
 import { getDefaultChatModel, getOpenAiCompatibleClient } from '../provider';
@@ -24,11 +25,13 @@ interface MonitoringEvent {
 }
 
 interface StoredMonitoringEvent extends Required<Pick<MonitoringEvent, 'type' | 'message'>> {
+  schemaVersion: 'monitoring.event.v1';
   id: string;
   timestamp: string;
   receivedAt: string;
   level: MonitoringLevel;
   source: string;
+  fingerprint: string;
   pageUrl?: string;
   userAgent?: string;
   release?: string;
@@ -36,16 +39,202 @@ interface StoredMonitoringEvent extends Required<Pick<MonitoringEvent, 'type' | 
   tags?: Record<string, string>;
   contexts?: Record<string, unknown>;
   extra?: Record<string, unknown>;
+  governance?: {
+    sanitized: boolean;
+    sanitizedFields?: string[];
+    ipHash?: string;
+  };
 }
 
 const DATA_DIR = path.resolve(__dirname, '../../data');
 const EVENTS_FILE = path.join(DATA_DIR, 'monitoring-events.json');
 const MAX_STORED_EVENTS = Number(process.env.MONITORING_MAX_EVENTS || 5000);
+const MAX_EVENTS_PER_REQUEST = Number(process.env.MONITORING_MAX_EVENTS_PER_REQUEST || 50);
+const RATE_LIMIT_WINDOW_MS = Number(process.env.MONITORING_RATE_LIMIT_WINDOW_MS || 60_000);
+const RATE_LIMIT_MAX_REQUESTS = Number(process.env.MONITORING_RATE_LIMIT_MAX_REQUESTS || 120);
+const INGEST_BUFFER_MAX_EVENTS = Number(process.env.MONITORING_INGEST_BUFFER_MAX_EVENTS || 1000);
+const INGEST_FLUSH_INTERVAL_MS = Number(process.env.MONITORING_INGEST_FLUSH_INTERVAL_MS || 1000);
+const INGEST_FLUSH_BATCH_SIZE = Number(process.env.MONITORING_INGEST_FLUSH_BATCH_SIZE || 100);
+const CIRCUIT_FAILURE_THRESHOLD = Number(process.env.MONITORING_CIRCUIT_FAILURE_THRESHOLD || 3);
+const CIRCUIT_OPEN_MS = Number(process.env.MONITORING_CIRCUIT_OPEN_MS || 30_000);
 
 let writeQueue = Promise.resolve();
+let ingestBuffer: StoredMonitoringEvent[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | undefined;
+let consecutiveWriteFailures = 0;
+let circuitOpenedUntil = 0;
+
+const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+
+const SENSITIVE_KEY_PATTERN =
+  /token|cookie|authorization|password|passwd|secret|api[-_]?key|session|credential|jwt|openid|access[-_]?key/i;
+const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const PHONE_PATTERN = /(?<!\d)1[3-9]\d{9}(?!\d)/g;
+const ID_CARD_PATTERN = /(?<!\d)\d{6}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx](?!\d)/g;
+
+interface SanitizedValue {
+  value: unknown;
+  fields: string[];
+}
 
 function newEventId(): string {
   return `evt-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function stableHash(input: string): string {
+  return crypto.createHash('sha256').update(input).digest('hex').slice(0, 16);
+}
+
+function hashIp(input: string): string {
+  const salt = process.env.MONITORING_IP_HASH_SALT || 'a2ui-monitoring-local';
+  return stableHash(`${salt}:${input}`);
+}
+
+function getClientIp(ctx: Context): string {
+  const forwarded = ctx.get('x-forwarded-for').split(',')[0]?.trim();
+  return forwarded || ctx.ip || ctx.req.socket.remoteAddress || 'unknown';
+}
+
+function checkRateLimit(ctx: Context): { ok: true } | { ok: false; retryAfterSeconds: number } {
+  const now = Date.now();
+  const key = hashIp(getClientIp(ctx));
+  const current = rateLimitBuckets.get(key);
+  if (!current || current.resetAt <= now) {
+    rateLimitBuckets.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return { ok: true };
+  }
+  current.count += 1;
+  if (current.count > RATE_LIMIT_MAX_REQUESTS) {
+    return {
+      ok: false,
+      retryAfterSeconds: Math.max(1, Math.ceil((current.resetAt - now) / 1000))
+    };
+  }
+  return { ok: true };
+}
+
+function pruneRateLimitBuckets() {
+  const now = Date.now();
+  for (const [key, bucket] of rateLimitBuckets.entries()) {
+    if (bucket.resetAt <= now) rateLimitBuckets.delete(key);
+  }
+}
+
+function sanitizeString(value: string, pathLabel: string): SanitizedValue {
+  const fields: string[] = [];
+  let next = value;
+  if (next.match(EMAIL_PATTERN)) {
+    fields.push(`${pathLabel}:email`);
+    next = next.replace(EMAIL_PATTERN, '[Filtered:email]');
+  }
+  if (next.match(PHONE_PATTERN)) {
+    fields.push(`${pathLabel}:phone`);
+    next = next.replace(PHONE_PATTERN, '[Filtered:phone]');
+  }
+  if (next.match(ID_CARD_PATTERN)) {
+    fields.push(`${pathLabel}:idCard`);
+    next = next.replace(ID_CARD_PATTERN, '[Filtered:idCard]');
+  }
+  return { value: next, fields };
+}
+
+function sanitizeValue(value: unknown, pathLabel = 'root', depth = 0): SanitizedValue {
+  if (depth > 6) {
+    return { value: '[Truncated:depth]', fields: [`${pathLabel}:depth`] };
+  }
+  if (typeof value === 'string') {
+    const sanitized = sanitizeString(value, pathLabel);
+    return {
+      value: String(sanitized.value).slice(0, 5000),
+      fields: sanitized.fields
+    };
+  }
+  if (value == null || typeof value !== 'object') {
+    return { value, fields: [] };
+  }
+  if (Array.isArray(value)) {
+    const fields: string[] = [];
+    const next = value.slice(0, 50).map((item, index) => {
+      const sanitized = sanitizeValue(item, `${pathLabel}[${index}]`, depth + 1);
+      fields.push(...sanitized.fields);
+      return sanitized.value;
+    });
+    if (value.length > 50) fields.push(`${pathLabel}:arrayTruncated`);
+    return { value: next, fields };
+  }
+
+  const out: Record<string, unknown> = {};
+  const fields: string[] = [];
+  for (const [key, child] of Object.entries(value as Record<string, unknown>).slice(0, 80)) {
+    const childPath = `${pathLabel}.${key}`;
+    if (SENSITIVE_KEY_PATTERN.test(key)) {
+      out[key] = '[Filtered]';
+      fields.push(childPath);
+      continue;
+    }
+    const sanitized = sanitizeValue(child, childPath, depth + 1);
+    out[key] = sanitized.value;
+    fields.push(...sanitized.fields);
+  }
+  return { value: out, fields };
+}
+
+function normalizeType(input?: MonitoringEventType): MonitoringEventType {
+  if (
+    input === 'error' ||
+    input === 'unhandledrejection' ||
+    input === 'performance' ||
+    input === 'resource' ||
+    input === 'custom'
+  ) {
+    return input;
+  }
+  return 'custom';
+}
+
+function normalizeLevel(input: MonitoringEvent['level'], type: MonitoringEventType): MonitoringLevel {
+  if (input === 'debug' || input === 'info' || input === 'warning' || input === 'error' || input === 'fatal') {
+    return input;
+  }
+  return type === 'error' || type === 'unhandledrejection' ? 'error' : 'info';
+}
+
+function normalizeTimestamp(input?: string): string {
+  if (!input) return new Date().toISOString();
+  const t = Date.parse(input);
+  if (!Number.isFinite(t)) return new Date().toISOString();
+  return new Date(t).toISOString();
+}
+
+function sanitizeUrl(input?: string): { value?: string; fields: string[] } {
+  if (!input) return { value: undefined, fields: [] };
+  const sanitized = sanitizeString(input, 'pageUrl');
+  try {
+    const url = new URL(String(sanitized.value));
+    for (const key of Array.from(url.searchParams.keys())) {
+      if (SENSITIVE_KEY_PATTERN.test(key)) {
+        url.searchParams.set(key, '[Filtered]');
+        sanitized.fields.push(`pageUrl.search.${key}`);
+      }
+    }
+    return { value: url.toString().slice(0, 1200), fields: sanitized.fields };
+  } catch {
+    return { value: String(sanitized.value).slice(0, 1200), fields: sanitized.fields };
+  }
+}
+
+function normalizeTags(input?: Record<string, string>): Record<string, string> | undefined {
+  if (!input || typeof input !== 'object') return undefined;
+  const entries = Object.entries(input).slice(0, 30).map(([key, value]) => [
+    key.trim().slice(0, 60),
+    String(value).trim().slice(0, 120)
+  ]);
+  return Object.fromEntries(entries);
+}
+
+function eventFingerprint(event: Pick<StoredMonitoringEvent, 'type' | 'message' | 'pageUrl' | 'release'>): string {
+  const normalizedMessage = event.message.replace(/\d+/g, '#').slice(0, 240);
+  return stableHash([event.type, normalizedMessage, event.pageUrl || '', event.release || ''].join('|'));
 }
 
 async function ensureStore() {
@@ -74,32 +263,49 @@ async function writeEvents(events: StoredMonitoringEvent[]) {
   await fs.writeFile(EVENTS_FILE, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
 }
 
-function normalizeEvent(input: MonitoringEvent): StoredMonitoringEvent {
-  const type = input.type || 'custom';
-  const message =
+function normalizeEvent(input: MonitoringEvent, ctx: Context): StoredMonitoringEvent {
+  const type = normalizeType(input.type);
+  const level = normalizeLevel(input.level, type);
+  const messageSource =
     typeof input.message === 'string' && input.message.trim()
       ? input.message.trim().slice(0, 2000)
       : 'monitoring event';
+  const message = sanitizeString(messageSource, 'message');
+  const contexts = sanitizeValue(input.contexts, 'contexts');
+  const extra = sanitizeValue(input.extra, 'extra');
+  const pageUrl = sanitizeUrl(input.pageUrl);
+  const sanitizedFields = [
+    ...message.fields,
+    ...contexts.fields,
+    ...extra.fields,
+    ...pageUrl.fields
+  ];
 
-  return {
+  const event: StoredMonitoringEvent = {
+    schemaVersion: 'monitoring.event.v1',
     id: typeof input.id === 'string' && input.id ? input.id : newEventId(),
-    timestamp:
-      typeof input.timestamp === 'string' && input.timestamp
-        ? input.timestamp
-        : new Date().toISOString(),
+    timestamp: normalizeTimestamp(input.timestamp),
     receivedAt: new Date().toISOString(),
     type,
-    level: input.level || (type === 'error' || type === 'unhandledrejection' ? 'error' : 'info'),
-    message,
+    level,
+    message: String(message.value),
     source: input.source || 'web',
-    pageUrl: input.pageUrl,
-    userAgent: input.userAgent,
-    release: input.release,
-    environment: input.environment,
-    tags: input.tags,
-    contexts: input.contexts,
-    extra: input.extra
+    fingerprint: '',
+    pageUrl: pageUrl.value,
+    userAgent: typeof input.userAgent === 'string' ? input.userAgent.slice(0, 500) : undefined,
+    release: typeof input.release === 'string' ? input.release.slice(0, 120) : undefined,
+    environment: typeof input.environment === 'string' ? input.environment.slice(0, 80) : undefined,
+    tags: normalizeTags(input.tags),
+    contexts: contexts.value as Record<string, unknown> | undefined,
+    extra: extra.value as Record<string, unknown> | undefined,
+    governance: {
+      sanitized: sanitizedFields.length > 0,
+      sanitizedFields: Array.from(new Set(sanitizedFields)).slice(0, 80),
+      ipHash: hashIp(getClientIp(ctx))
+    }
   };
+  event.fingerprint = eventFingerprint(event);
+  return event;
 }
 
 function countBy(events: StoredMonitoringEvent[], getter: (event: StoredMonitoringEvent) => string) {
@@ -177,6 +383,61 @@ function parseLimit(ctx: Context) {
   return Math.max(1, Math.min(1000, Math.floor(raw)));
 }
 
+function isCircuitOpen(): boolean {
+  return Date.now() < circuitOpenedUntil;
+}
+
+function openCircuit() {
+  circuitOpenedUntil = Date.now() + CIRCUIT_OPEN_MS;
+}
+
+function scheduleFlush() {
+  if (flushTimer) return;
+  flushTimer = setTimeout(() => {
+    flushTimer = undefined;
+    void flushIngestBuffer();
+  }, INGEST_FLUSH_INTERVAL_MS);
+}
+
+async function flushIngestBuffer(): Promise<void> {
+  if (ingestBuffer.length === 0) return;
+  const batch = ingestBuffer.splice(0, INGEST_FLUSH_BATCH_SIZE);
+  writeQueue = writeQueue.then(async () => {
+    try {
+      const current = await readEvents();
+      await writeEvents([...current, ...batch]);
+      consecutiveWriteFailures = 0;
+    } catch (e) {
+      consecutiveWriteFailures += 1;
+      ingestBuffer = [...batch, ...ingestBuffer].slice(0, INGEST_BUFFER_MAX_EVENTS);
+      if (consecutiveWriteFailures >= CIRCUIT_FAILURE_THRESHOLD) openCircuit();
+    }
+  });
+  try {
+    await writeQueue;
+  } catch {
+    /* circuit state is updated above */
+  }
+  if (ingestBuffer.length > 0 && !isCircuitOpen()) scheduleFlush();
+}
+
+function enqueueEvents(events: StoredMonitoringEvent[]): { accepted: number; dropped: number } {
+  if (isCircuitOpen()) {
+    return { accepted: 0, dropped: events.length };
+  }
+  pruneRateLimitBuckets();
+  const capacity = Math.max(0, INGEST_BUFFER_MAX_EVENTS - ingestBuffer.length);
+  const acceptedEvents = events.slice(0, capacity);
+  const dropped = events.length - acceptedEvents.length;
+  ingestBuffer.push(...acceptedEvents);
+  if (ingestBuffer.length >= INGEST_FLUSH_BATCH_SIZE) {
+    void flushIngestBuffer();
+  } else {
+    scheduleFlush();
+  }
+  return { accepted: acceptedEvents.length, dropped };
+}
+
 function buildAnalysisPayload(events: StoredMonitoringEvent[]) {
   const summary = buildSummary(events);
   const latestEvents = events.slice(-80).reverse().map((event) => ({
@@ -231,22 +492,42 @@ export function createMonitoringRouter(): Router {
   const router = new Router();
 
   router.post('/api/monitoring/events', async (ctx: Context) => {
+    if (isCircuitOpen()) {
+      ctx.status = 503;
+      ctx.set('Retry-After', String(Math.ceil((circuitOpenedUntil - Date.now()) / 1000)));
+      ctx.body = { error: 'monitoring ingest circuit open' };
+      return;
+    }
+
+    const rateLimit = checkRateLimit(ctx);
+    if (!rateLimit.ok) {
+      ctx.status = 429;
+      ctx.set('Retry-After', String(rateLimit.retryAfterSeconds));
+      ctx.body = { error: 'monitoring ingest rate limited', retryAfterSeconds: rateLimit.retryAfterSeconds };
+      return;
+    }
+
     const body = ctx.request.body as MonitoringEvent | MonitoringEvent[] | { events?: MonitoringEvent[] };
     const rawEvents = Array.isArray(body)
       ? body
       : 'events' in body && Array.isArray(body.events)
         ? body.events
         : [body as MonitoringEvent];
-    const normalized = rawEvents.filter(Boolean).map(normalizeEvent);
+    const limitedRawEvents = rawEvents.filter(Boolean).slice(0, MAX_EVENTS_PER_REQUEST);
+    const normalized = limitedRawEvents.map((event) => normalizeEvent(event, ctx));
+    const result = enqueueEvents(normalized);
 
-    writeQueue = writeQueue.then(async () => {
-      const current = await readEvents();
-      await writeEvents([...current, ...normalized]);
-    });
-
-    await writeQueue;
-    ctx.status = 201;
-    ctx.body = { ok: true, accepted: normalized.length };
+    ctx.status = result.accepted > 0 ? 202 : 503;
+    ctx.body = {
+      ok: result.accepted > 0,
+      accepted: result.accepted,
+      dropped: result.dropped + Math.max(0, rawEvents.length - limitedRawEvents.length),
+      buffered: ingestBuffer.length,
+      governance: {
+        data: 'sanitized-and-standardized',
+        traffic: 'rate-limited-buffered-circuit-protected'
+      }
+    };
   });
 
   router.get('/api/monitoring/events', async (ctx: Context) => {

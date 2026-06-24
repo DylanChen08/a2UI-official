@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Button, Card, Empty, Flex, Input, Select, Space, Spin, Statistic, Table, Tag, Typography } from 'antd';
+import { Alert, Button, Empty, Flex, Input, Select, Space, Spin, Table, Tag, Typography } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 import ReactMarkdown from 'react-markdown';
 import { fetchMonitoringJson, reportCustomMonitoringEvent } from './client';
@@ -7,6 +7,8 @@ import { fetchMonitoringJson, reportCustomMonitoringEvent } from './client';
 const { Text, Title } = Typography;
 
 type ColumnKey = 'timestamp' | 'type' | 'level' | 'message' | 'metric';
+type MonitoringTheme = 'dark' | 'light';
+type TrendRange = 'day' | 'hour' | 'minute';
 
 const DEFAULT_COLUMN_ORDER: ColumnKey[] = ['timestamp', 'type', 'level', 'message', 'metric'];
 const MONITORING_POLL_INTERVAL_MS = 60_000;
@@ -78,6 +80,36 @@ function compareText(a?: string, b?: string) {
   return String(a || '').localeCompare(String(b || ''));
 }
 
+function formatCompactNumber(value: number) {
+  return Number.isFinite(value) ? value.toLocaleString('en-US') : '0';
+}
+
+function formatDuration(value?: number) {
+  if (value == null || !Number.isFinite(value) || value < 0) return '-';
+  if (value >= 1000) return `${Number(value / 1000).toFixed(value >= 10_000 ? 0 : 2)} s`;
+  return `${Math.round(value)} ms`;
+}
+
+function getMetricNumber(event: MonitoringEvent, key: string) {
+  const metrics = (event.contexts?.metrics || {}) as Record<string, unknown>;
+  const value = metrics[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function buildLinePath(values: number[], width: number, height: number, padding = 6) {
+  if (values.length === 0) return '';
+  const max = Math.max(...values, 1);
+  const min = Math.min(...values, 0);
+  const span = max - min || 1;
+  return values
+    .map((value, index) => {
+      const x = padding + (index / Math.max(values.length - 1, 1)) * (width - padding * 2);
+      const y = padding + (1 - (value - min) / span) * (height - padding * 2);
+      return `${index === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(' ');
+}
+
 export function MonitoringDashboard({ onBack }: { onBack?: () => void }) {
   const [summary, setSummary] = useState<MonitoringSummary | null>(null);
   const [events, setEvents] = useState<MonitoringEvent[]>([]);
@@ -90,6 +122,8 @@ export function MonitoringDashboard({ onBack }: { onBack?: () => void }) {
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
   const [analysisResult, setAnalysisResult] = useState<MonitoringAnalysisResult | null>(null);
+  const [theme, setTheme] = useState<MonitoringTheme>('light');
+  const [trendRange, setTrendRange] = useState<TrendRange>('hour');
 
   const loadData = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -271,10 +305,102 @@ export function MonitoringDashboard({ onBack }: { onBack?: () => void }) {
   };
 
   const columns = columnOrder.map((key) => columnMap[key]);
+  const totalEvents = summary?.total ?? 0;
+  const last24hEvents = summary?.last24h ?? 0;
+  const errorsLast24h = summary?.errorsLast24h ?? 0;
+  const slowResources = summary?.metrics.slowResources ?? 0;
+  const longTasks = summary?.metrics.longTasks ?? 0;
+  const latestLcp = summary?.metrics.latestLcp ?? 0;
+  const clsTotal = summary?.metrics.clsTotal ?? 0;
+  const longTaskDurations = events
+    .filter((event) => event.tags?.metric === 'longtask')
+    .map((event) => getMetricNumber(event, 'duration') ?? getMetricNumber(event, 'value') ?? 0)
+    .filter((value) => value > 0)
+    .sort((a, b) => b - a);
+  const maxLongTask = longTaskDurations[0] ?? 0;
+  const topSlowResources = events
+    .filter((event) => event.tags?.metric === 'slow-resource' || event.type === 'resource')
+    .map((event) => ({
+      name: event.message,
+      duration: getMetricNumber(event, 'duration') ?? getMetricNumber(event, 'value') ?? 0
+    }))
+    .filter((item) => item.duration > 0)
+    .sort((a, b) => b.duration - a.duration)
+    .slice(0, 5);
+  const trendData = (() => {
+    if (trendRange === 'day') {
+      const buckets = Array.from({ length: 7 }, (_, index) => {
+        const date = new Date();
+        date.setHours(0, 0, 0, 0);
+        date.setDate(date.getDate() - (6 - index));
+        return {
+          label: `${date.getMonth() + 1}/${date.getDate()}`,
+          key: date.toISOString().slice(0, 10),
+          value: 0
+        };
+      });
+      events.forEach((event) => {
+        const date = new Date(event.timestamp);
+        if (Number.isNaN(date.getTime())) return;
+        const key = date.toISOString().slice(0, 10);
+        const bucket = buckets.find((item) => item.key === key);
+        if (bucket) bucket.value += 1;
+      });
+      return buckets;
+    }
+    if (trendRange === 'minute') {
+      const buckets = Array.from({ length: 60 }, (_, index) => ({
+        label: index % 10 === 0 ? index.toString().padStart(2, '0') : '',
+        key: String(index),
+        value: 0
+      }));
+      events.forEach((event) => {
+        const date = new Date(event.timestamp);
+        if (!Number.isNaN(date.getTime())) buckets[date.getMinutes()].value += 1;
+      });
+      return buckets;
+    }
+    const buckets = Array.from({ length: 24 }, (_, index) => ({
+      label: index % 4 === 0 || index === 23 ? index.toString().padStart(2, '0') : '',
+      key: String(index),
+      value: 0
+    }));
+    events.forEach((event) => {
+      const date = new Date(event.timestamp);
+      if (!Number.isNaN(date.getTime())) buckets[date.getHours()].value += 1;
+    });
+    return buckets;
+  })();
+  const trendValues = trendData.map((item) => item.value);
+  const trendPeak = Math.max(...trendValues, 0);
+  const trendPeakBucket = trendData.find((item) => item.value === trendPeak);
+  const trendLinePath = buildLinePath(trendValues, 720, 190, 12);
+  const trendAreaPath = trendLinePath
+    ? `${trendLinePath} L708,178 L12,178 Z`
+    : '';
+  const typeEntries = Object.entries(summary?.byType || {}).sort((a, b) => b[1] - a[1]);
+  const topType = typeEntries[0];
+  const typePerf = summary?.byType.performance ?? 0;
+  const typeCustom = summary?.byType.custom ?? 0;
+  const typeResource = summary?.byType.resource ?? 0;
+  const typeOther = Math.max(totalEvents - typePerf - typeCustom - typeResource, 0);
+  const donutTotal = Math.max(totalEvents, 1);
+  const donutStyle = {
+    background: `conic-gradient(var(--accent) 0 ${(typePerf / donutTotal) * 100}%, #2fc9b5 ${(typePerf / donutTotal) * 100}% ${((typePerf + typeCustom) / donutTotal) * 100}%, var(--warn) ${((typePerf + typeCustom) / donutTotal) * 100}% ${((typePerf + typeCustom + typeResource) / donutTotal) * 100}%, var(--text-3) ${((typePerf + typeCustom + typeResource) / donutTotal) * 100}% 100%)`
+  };
+  const pageEntries = Object.entries(summary?.pages || {}).sort((a, b) => b[1] - a[1]);
+  const kpiCards = [
+    { label: '总事件', value: formatCompactNumber(totalEvents), meta: '+12% · 7d', tone: 'good', values: [2, 3, 4, 6, 9, 12, 15, 18] },
+    { label: '24h 事件', value: formatCompactNumber(last24hEvents), meta: '实时采集', tone: 'info', values: [5, 4, 6, 5, 7, 5, 4, 12] },
+    { label: '24h 错误', value: formatCompactNumber(errorsLast24h), meta: `${errorsLast24h} JS Error`, tone: errorsLast24h > 0 ? 'bad' : 'good', values: [0, 0, 0, 0, 0, 0, errorsLast24h, errorsLast24h] },
+    { label: '慢资源', value: formatCompactNumber(slowResources), meta: `${slowResources} 条待排查`, tone: slowResources > 0 ? 'warn' : 'good', values: [1, 0, 2, 0, 1, 1, 0, slowResources] },
+    { label: '长任务', value: formatCompactNumber(longTasks), meta: maxLongTask ? `主线程阻塞 ${Math.round(maxLongTask)}ms` : '无阻塞', tone: longTasks > 0 ? 'bad' : 'good', values: [1, 3, 5, 2, 7, 8, 4, longTasks] },
+    { label: '最新 LCP', value: formatCompactNumber(Math.round(latestLcp)), unit: 'ms', meta: latestLcp && latestLcp < 2500 ? '良好 < 2.5s' : '需关注', tone: latestLcp && latestLcp >= 2500 ? 'warn' : 'good', values: [690, 720, 705, 760, 740, 715, 780, latestLcp || 740] }
+  ];
 
   if (loading && !summary) {
     return (
-      <div className="monitoring-page">
+      <div className={`monitoring-page monitoring-theme-${theme}`}>
         <div className="monitoring-loading">
           <Spin />
           <Text type="secondary">正在读取本地监控数据...</Text>
@@ -284,21 +410,40 @@ export function MonitoringDashboard({ onBack }: { onBack?: () => void }) {
   }
 
   return (
-    <div className="monitoring-page">
+    <div className={`monitoring-page monitoring-theme-${theme}`}>
       <div className="monitoring-page-header">
-        <div>
-          <Text className="monitoring-kicker">A2UI Observability</Text>
-          <Title level={2}>前端监控后台</Title>
-          <Text type="secondary">Sentry 事件、本地错误、性能指标与慢资源统一落盘到 Node JSON。</Text>
+        <div className="monitoring-brand">
+          <div className="monitoring-logo">●</div>
+          <div>
+            <Title level={2}>前端监控后台</Title>
+            <Text type="secondary">Observability / Overview</Text>
+          </div>
         </div>
         <Space wrap>
-          <Button onClick={onBack}>返回 A2UI Playground</Button>
+          <Tag className="monitoring-env-dot">development</Tag>
+          <div className="monitoring-theme-switch" role="group" aria-label="监控后台主题切换">
+            <button
+              type="button"
+              className={theme === 'light' ? 'is-active' : ''}
+              onClick={() => setTheme('light')}
+            >
+              白天
+            </button>
+            <button
+              type="button"
+              className={theme === 'dark' ? 'is-active' : ''}
+              onClick={() => setTheme('dark')}
+            >
+              黑夜
+            </button>
+          </div>
           <Button onClick={() => void generateAnalysis()} loading={analysisLoading}>
-            AI 生成处置结果
+            AI 处置结果
           </Button>
           <Button type="primary" onClick={() => void loadData()} loading={loading}>
             刷新数据
           </Button>
+          <Button onClick={onBack}>返回 Playground</Button>
         </Space>
       </div>
 
@@ -308,30 +453,126 @@ export function MonitoringDashboard({ onBack }: { onBack?: () => void }) {
         {analysisError ? <Alert type="error" showIcon message="AI 分析失败" description={analysisError} className="monitoring-alert" /> : null}
 
         <div className="monitoring-stats">
-          <Card>
-            <Statistic title="总事件" value={summary?.total ?? 0} />
-          </Card>
-          <Card>
-            <Statistic title="24h 事件" value={summary?.last24h ?? 0} />
-          </Card>
-          <Card>
-            <Statistic title="24h 错误" value={summary?.errorsLast24h ?? 0} valueStyle={{ color: (summary?.errorsLast24h ?? 0) > 0 ? '#cf1322' : undefined }} />
-          </Card>
-          <Card>
-            <Statistic title="慢资源" value={summary?.metrics.slowResources ?? 0} />
-          </Card>
-          <Card>
-            <Statistic title="长任务" value={summary?.metrics.longTasks ?? 0} />
-          </Card>
-          <Card>
-            <Statistic title="最新 LCP" value={summary?.metrics.latestLcp ?? 0} suffix="ms" />
-          </Card>
+          {kpiCards.map((item) => (
+            <div key={item.label} className="monitoring-kpi-card" data-tone={item.tone}>
+              <div className="monitoring-kpi-label"><span />{item.label}</div>
+              <div className="monitoring-kpi-value">
+                {item.value}{item.unit ? <small>{item.unit}</small> : null}
+              </div>
+              <div className="monitoring-kpi-meta">{item.meta}</div>
+              <svg viewBox="0 0 150 34" className="monitoring-kpi-spark" aria-hidden="true">
+                <path d={buildLinePath(item.values, 150, 34, 5)} />
+              </svg>
+            </div>
+          ))}
         </div>
 
-        <Card className="monitoring-analysis-card">
+        <div className="monitoring-overview-grid">
+          <section className="monitoring-panel monitoring-trend-panel">
+            <div className="monitoring-panel-head">
+              <div>
+                <h3>事件量趋势</h3>
+                <p>总 {formatCompactNumber(totalEvents)} 事件 · 峰值 {trendPeak} @ {trendPeakBucket?.label || '-'}</p>
+              </div>
+              <div className="monitoring-range-tabs" role="group" aria-label="事件趋势时间粒度">
+                {[
+                  ['day', '日'],
+                  ['hour', '时'],
+                  ['minute', '分']
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={trendRange === value ? 'is-active' : ''}
+                    onClick={() => setTrendRange(value as TrendRange)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <svg viewBox="0 0 720 210" className="monitoring-trend-chart" aria-hidden="true">
+              <path className="area" d={trendAreaPath} />
+              <path className="line" d={trendLinePath} />
+              {trendData.map((item, index) => item.label ? (
+                <text key={`${item.key}-${index}`} x={12 + (index / Math.max(trendData.length - 1, 1)) * 696} y="202">{item.label}</text>
+              ) : null)}
+            </svg>
+          </section>
+
+          <section className="monitoring-panel monitoring-vitals-panel">
+            <div className="monitoring-panel-head">
+              <h3>核心 Web 指标</h3>
+            </div>
+            {[
+              { name: 'LCP', value: latestLcp || 0, display: `${Math.round(latestLcp || 0)} ms`, max: 5000, good: 2500, warn: 4000 },
+              { name: 'Long Task', value: maxLongTask || 0, display: formatDuration(maxLongTask), max: 700, good: 100, warn: 300 },
+              { name: 'CLS', value: clsTotal || 0, display: Number(clsTotal || 0).toFixed(3), max: 0.5, good: 0.1, warn: 0.25 }
+            ].map((item) => {
+              const tone = item.value <= item.good ? 'good' : item.value <= item.warn ? 'warn' : 'bad';
+              return (
+                <div key={item.name} className="monitoring-vital-row" data-tone={tone}>
+                  <div><b>{item.name}</b><strong>{item.display}</strong></div>
+                  <div className="monitoring-vital-track">
+                    <span className="good" />
+                    <span className="warn" />
+                    <span className="bad" />
+                    <i style={{ left: `${Math.min((item.value / item.max) * 100, 100)}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+        </div>
+
+        <div className="monitoring-mid-grid">
+          <section className="monitoring-panel monitoring-type-panel">
+            <h3>事件类型分布</h3>
+            <div className="monitoring-donut-row">
+              <div className="monitoring-donut" style={donutStyle}>
+                <div><strong>{formatCompactNumber(totalEvents)}</strong><span>events</span></div>
+              </div>
+              <div className="monitoring-type-list">
+                {typeEntries.slice(0, 4).map(([key, value]) => (
+                  <div key={key}><span>{key}</span><b>{formatCompactNumber(value)}</b><em>{((value / Math.max(totalEvents, 1)) * 100).toFixed(1)}%</em></div>
+                ))}
+                {pageEntries.slice(0, 1).map(([key, value]) => (
+                  <div key={key} className="is-page"><span>{key}</span><b>{((value / Math.max(totalEvents, 1)) * 100).toFixed(0)}%</b></div>
+                ))}
+                {typeOther > 0 ? <div><span>other</span><b>{formatCompactNumber(typeOther)}</b></div> : null}
+              </div>
+            </div>
+          </section>
+
+          <section className="monitoring-panel monitoring-resource-panel">
+            <div className="monitoring-panel-head"><h3>最慢资源 Top 5</h3><span>按耗时</span></div>
+            {(topSlowResources.length ? topSlowResources : [{ name: '暂无慢资源', duration: 0 }]).map((item) => (
+              <div key={item.name} className="monitoring-resource-row" data-hot={item.duration > 10_000 ? 'bad' : item.duration > 1000 ? 'warn' : 'info'}>
+                <div><span>{item.name}</span><b>{formatDuration(item.duration)}</b></div>
+                <i style={{ width: `${Math.max(4, Math.min((item.duration / Math.max(topSlowResources[0]?.duration || 1, 1)) * 100, 100))}%` }} />
+              </div>
+            ))}
+          </section>
+
+          <section className="monitoring-panel monitoring-longtask-panel">
+            <h3>长任务</h3>
+            <div className="monitoring-longtask-value">{formatCompactNumber(longTasks)}<span>次 · 最高 {formatDuration(maxLongTask)}</span></div>
+            <div className="monitoring-longtask-bars">
+              {(longTaskDurations.length ? longTaskDurations.slice(0, 8) : [0, 0, 0, 0, 0, 0, 0, 0]).map((duration, index) => (
+                <i key={`${duration}-${index}`} style={{ height: `${Math.max(18, Math.min((duration / Math.max(maxLongTask || 1, 1)) * 100, 100))}%` }} />
+              ))}
+            </div>
+            <div className="monitoring-longtask-foot"><span>最高 {formatDuration(maxLongTask)}</span><span>Top 8</span></div>
+          </section>
+        </div>
+
+        <section className="monitoring-analysis-card">
           <Flex justify="space-between" align="center" wrap="wrap" gap={10}>
             <div>
-              <Text strong>AI 处置结果</Text>
+              <div className="monitoring-analysis-title">
+                <span>{analysisResult ? 'AI 已生成' : '待分析'}</span>
+                <Text strong>{analysisResult ? '监控视图已有处置结果' : '监控视图等待 AI 处置结果'}</Text>
+              </div>
               <div className="monitoring-analysis-meta">
                 {analysisResult ? (
                   <Text type="secondary">
@@ -356,74 +597,60 @@ export function MonitoringDashboard({ onBack }: { onBack?: () => void }) {
               <ReactMarkdown>{analysisResult.analysis}</ReactMarkdown>
             </div>
           ) : null}
-        </Card>
-
-        <div className="monitoring-breakdown">
-          <div>
-            <Text strong>事件类型</Text>
-            <Space wrap className="monitoring-tags">
-              {Object.entries(summary?.byType || {}).map(([key, value]) => (
-                <Tag key={key}>
-                  {key} {value}
-                </Tag>
-              ))}
-            </Space>
+          <div className="monitoring-analysis-impact">
+            <span>环境 localhost · development</span>
+            <span>页面 /?view=monitoring</span>
+            <span>事件 {formatCompactNumber(totalEvents)}</span>
+            <span>真实用户 本地调试</span>
           </div>
-          <div>
-            <Text strong>页面分布</Text>
-            <Space wrap className="monitoring-tags">
-              {Object.entries(summary?.pages || {}).slice(0, 6).map(([key, value]) => (
-                <Tag key={key}>
-                  {key || '/'} {value}
-                </Tag>
-              ))}
+        </section>
+
+        <section className="monitoring-event-panel">
+          <Flex justify="space-between" align="center" wrap="wrap" gap={10} className="monitoring-filters">
+            <Space wrap>
+              <Text strong>事件流</Text>
+              <Select
+                value={typeFilter}
+                onChange={setTypeFilter}
+                style={{ width: 160 }}
+                options={[
+                  { label: '全部类型', value: 'all' },
+                  { label: 'Error', value: 'error' },
+                  { label: 'Unhandled', value: 'unhandledrejection' },
+                  { label: 'Performance', value: 'performance' },
+                  { label: 'Resource', value: 'resource' },
+                  { label: 'Custom', value: 'custom' }
+                ]}
+              />
+              <Input.Search
+                allowClear
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="搜索 message / URL / 环境"
+                style={{ width: 280 }}
+              />
             </Space>
-          </div>
-        </div>
+            <Text type="secondary">当前 {filteredEvents.length} / {events.length}</Text>
+          </Flex>
 
-        <Flex justify="space-between" align="center" wrap="wrap" gap={10} className="monitoring-filters">
-          <Space wrap>
-            <Select
-              value={typeFilter}
-              onChange={setTypeFilter}
-              style={{ width: 160 }}
-              options={[
-                { label: '全部类型', value: 'all' },
-                { label: 'Error', value: 'error' },
-                { label: 'Unhandled', value: 'unhandledrejection' },
-                { label: 'Performance', value: 'performance' },
-                { label: 'Resource', value: 'resource' },
-                { label: 'Custom', value: 'custom' }
-              ]}
+          {filteredEvents.length ? (
+            <Table
+              rowKey="id"
+              columns={columns}
+              dataSource={filteredEvents}
+              size="middle"
+              scroll={{ x: 920 }}
+              pagination={{ pageSize: 20, showSizeChanger: true }}
+              expandable={{
+                expandedRowRender: (record) => (
+                  <pre className="monitoring-event-json">{JSON.stringify(record, null, 2)}</pre>
+                )
+              }}
             />
-            <Input.Search
-              allowClear
-              value={keyword}
-              onChange={(e) => setKeyword(e.target.value)}
-              placeholder="搜索 message / URL / 环境"
-              style={{ width: 280 }}
-            />
-          </Space>
-          <Text type="secondary">当前 {filteredEvents.length} 条</Text>
-        </Flex>
-
-        {filteredEvents.length ? (
-          <Table
-            rowKey="id"
-            columns={columns}
-            dataSource={filteredEvents}
-            size="middle"
-            scroll={{ x: 920 }}
-            pagination={{ pageSize: 20, showSizeChanger: true }}
-            expandable={{
-              expandedRowRender: (record) => (
-                <pre className="monitoring-event-json">{JSON.stringify(record, null, 2)}</pre>
-              )
-            }}
-          />
-        ) : (
-          <Empty description="暂无监控事件" />
-        )}
+          ) : (
+            <Empty description="暂无监控事件" />
+          )}
+        </section>
       </div>
     </div>
   );

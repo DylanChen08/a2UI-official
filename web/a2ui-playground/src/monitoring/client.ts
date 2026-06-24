@@ -26,6 +26,12 @@ export interface LocalMonitoringEvent {
 const MONITORING_ENDPOINT = '/api/monitoring/events';
 let initialized = false;
 
+const SENSITIVE_KEY_PATTERN =
+  /token|cookie|authorization|password|passwd|secret|api[-_]?key|session|credential|jwt|openid|access[-_]?key/i;
+const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+const PHONE_PATTERN = /(?<!\d)1[3-9]\d{9}(?!\d)/g;
+const ID_CARD_PATTERN = /(?<!\d)\d{6}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx](?!\d)/g;
+
 function isLocalHost(hostname: string) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
 }
@@ -58,18 +64,61 @@ export async function fetchMonitoringJson<T>(pathname: string, init?: RequestIni
 }
 
 function getRuntimeContext() {
+  const url = new URL(window.location.href);
+  for (const key of Array.from(url.searchParams.keys())) {
+    if (SENSITIVE_KEY_PATTERN.test(key)) {
+      url.searchParams.set(key, '[Filtered]');
+    }
+  }
   return {
     timestamp: new Date().toISOString(),
     source: 'web' as const,
-    pageUrl: window.location.href,
+    pageUrl: sanitizeString(url.toString()),
     userAgent: navigator.userAgent,
     release: import.meta.env.VITE_APP_VERSION || 'local',
     environment: import.meta.env.MODE || 'development'
   };
 }
 
+function sanitizeString(value: string): string {
+  const masked = value
+    .replace(EMAIL_PATTERN, '[Filtered:email]')
+    .replace(PHONE_PATTERN, '[Filtered:phone]')
+    .replace(ID_CARD_PATTERN, '[Filtered:idCard]');
+  try {
+    const url = new URL(masked);
+    for (const key of Array.from(url.searchParams.keys())) {
+      if (SENSITIVE_KEY_PATTERN.test(key)) {
+        url.searchParams.set(key, '[Filtered]');
+      }
+    }
+    return url.toString();
+  } catch {
+    return masked;
+  }
+}
+
+function sanitizeMonitoringPayload(value: unknown, depth = 0): unknown {
+  if (depth > 6) return '[Truncated:depth]';
+  if (typeof value === 'string') return sanitizeString(value).slice(0, 5000);
+  if (value == null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) {
+    return value.slice(0, 50).map((item) => sanitizeMonitoringPayload(item, depth + 1));
+  }
+
+  const out: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>).slice(0, 80)) {
+    if (SENSITIVE_KEY_PATTERN.test(key)) {
+      out[key] = '[Filtered]';
+      continue;
+    }
+    out[key] = sanitizeMonitoringPayload(child, depth + 1);
+  }
+  return out;
+}
+
 function sendLocalMonitoringEvent(event: LocalMonitoringEvent) {
-  const payload = {
+  const payload = sanitizeMonitoringPayload({
     ...getRuntimeContext(),
     ...event,
     contexts: {
@@ -80,7 +129,7 @@ function sendLocalMonitoringEvent(event: LocalMonitoringEvent) {
       },
       ...(event.contexts || {})
     }
-  };
+  }) as LocalMonitoringEvent;
 
   try {
     const body = JSON.stringify(payload);
