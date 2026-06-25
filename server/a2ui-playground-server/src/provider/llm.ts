@@ -27,13 +27,24 @@ function getLlmProvider(): LlmProvider {
   return '';
 }
 
+function inferLlmProviderFromKeys(): LlmProvider {
+  if (process.env.KIMI_API_KEY?.trim()) return 'moonshot';
+  if (process.env.OPENAI_API_KEY?.trim()) return 'openai';
+  if (process.env.LLM_API_KEY?.trim()) return 'llm_compat';
+  return '';
+}
+
+function getResolvedLlmProvider(): LlmProvider {
+  return getLlmProvider() || inferLlmProviderFromKeys();
+}
+
 /**
  * 读取 LLM 配置（不创建客户端）。
  * 优先 `KIMI_API_KEY` + `KIMI_BASE_URL`；其次 `OPENAI_API_KEY` + `OPENAI_BASE_URL`；
  * 最后 `LLM_API_KEY` + `LLM_BASE_URL`。
  */
 export function getLlmConfig(): LlmClientConfig | null {
-  const provider = getLlmProvider();
+  const provider = getResolvedLlmProvider();
   const kimiKey = process.env.KIMI_API_KEY?.trim();
   const openaiKey = process.env.OPENAI_API_KEY?.trim();
   const legacyKey = process.env.LLM_API_KEY?.trim();
@@ -82,7 +93,7 @@ export function getLlmConfig(): LlmClientConfig | null {
 
 /** `POST /api/chat` 默认模型（可被请求体 `model` 或 `OPENAI_MODEL` 覆盖）；DashScope 兼容网关常用通义系列 */
 export function getDefaultChatModel(): string {
-  const provider = getLlmProvider();
+  const provider = getResolvedLlmProvider();
   if (provider === 'moonshot') {
     return process.env.KIMI_MODEL?.trim() || 'kimi-k2.6';
   }
@@ -100,7 +111,7 @@ export function getDefaultChatModel(): string {
  * 未设置时回退到 `getDefaultChatModel()`，避免破坏仅文本场景。
  */
 export function getVisionChatModel(): string {
-  const provider = getLlmProvider();
+  const provider = getResolvedLlmProvider();
   let v: string | undefined;
   if (provider === 'moonshot') {
     v = process.env.KIMI_VISION_MODEL?.trim() || process.env.KIMI_MODEL?.trim();
