@@ -1,17 +1,19 @@
 import * as Sentry from '@sentry/react';
 
 export type MonitoringEventType =
-  | 'error'
-  | 'unhandledrejection'
+  | 'js_error'
+  | 'promise_error'
+  | 'api_error'
   | 'performance'
-  | 'resource'
-  | 'custom';
+  | 'business';
+
+export type MonitoringLevel = 'info' | 'warning' | 'error' | 'fatal';
 
 export interface LocalMonitoringEvent {
   id?: string;
   timestamp?: string;
   type: MonitoringEventType;
-  level?: 'debug' | 'info' | 'warning' | 'error' | 'fatal';
+  level?: MonitoringLevel;
   message: string;
   source?: 'web';
   pageUrl?: string;
@@ -25,6 +27,9 @@ export interface LocalMonitoringEvent {
 
 const MONITORING_ENDPOINT = '/api/monitoring/events';
 let initialized = false;
+const INFO_SAMPLE_RATE = Number(import.meta.env.VITE_MONITORING_INFO_SAMPLE_RATE || 0.1);
+const DEBUG_ENABLED =
+  import.meta.env.DEV || import.meta.env.VITE_MONITORING_DEBUG === '1';
 
 const SENSITIVE_KEY_PATTERN =
   /token|cookie|authorization|password|passwd|secret|api[-_]?key|session|credential|jwt|openid|access[-_]?key/i;
@@ -117,10 +122,27 @@ function sanitizeMonitoringPayload(value: unknown, depth = 0): unknown {
   return out;
 }
 
+function normalizeMonitoringLevel(level: unknown, type: MonitoringEventType): MonitoringLevel | null {
+  if (level === 'fatal' || level === 'error' || level === 'warning' || level === 'info') return level;
+  if (level === 'debug') return DEBUG_ENABLED ? 'info' : null;
+  return type === 'js_error' || type === 'promise_error' || type === 'api_error' ? 'error' : 'info';
+}
+
+function shouldSampleEvent(level: MonitoringLevel): boolean {
+  if (!import.meta.env.PROD) return true;
+  if (level !== 'info') return true;
+  if (INFO_SAMPLE_RATE >= 1) return true;
+  if (INFO_SAMPLE_RATE <= 0) return false;
+  return Math.random() < INFO_SAMPLE_RATE;
+}
+
 function sendLocalMonitoringEvent(event: LocalMonitoringEvent) {
+  const level = normalizeMonitoringLevel(event.level, event.type);
+  if (!level || !shouldSampleEvent(level)) return;
   const payload = sanitizeMonitoringPayload({
     ...getRuntimeContext(),
     ...event,
+    level,
     contexts: {
       viewport: {
         width: window.innerWidth,
@@ -241,7 +263,7 @@ function observePerformance() {
       handler: (entry) => {
         if (entry.duration < 1000) return;
         sendLocalMonitoringEvent({
-          type: 'resource',
+          type: 'performance',
           level: 'warning',
           message: entry.name,
           tags: { metric: 'slow-resource' },
@@ -281,7 +303,7 @@ export function initFrontendMonitoring() {
     tracesSampleRate: Number(import.meta.env.VITE_SENTRY_TRACES_SAMPLE_RATE || 0.2),
     beforeSend(event) {
       sendLocalMonitoringEvent({
-        type: 'error',
+        type: 'js_error',
         level: (event.level as LocalMonitoringEvent['level']) || 'error',
         message: event.message || event.exception?.values?.[0]?.value || 'Sentry error',
         tags: Object.fromEntries(
@@ -300,7 +322,7 @@ export function initFrontendMonitoring() {
   window.addEventListener('error', (ev) => {
     const normalized = normalizeError(ev.error || ev.message);
     sendLocalMonitoringEvent({
-      type: 'error',
+      type: 'js_error',
       level: 'error',
       message: normalized.message,
       contexts: {
@@ -313,7 +335,7 @@ export function initFrontendMonitoring() {
   window.addEventListener('unhandledrejection', (ev) => {
     const normalized = normalizeError(ev.reason);
     sendLocalMonitoringEvent({
-      type: 'unhandledrejection',
+      type: 'promise_error',
       level: 'error',
       message: normalized.message,
       contexts: { error: normalized }
@@ -327,7 +349,7 @@ export function reportFrontendError(error: unknown, context?: Record<string, unk
   const normalized = normalizeError(error);
   Sentry.captureException(error);
   sendLocalMonitoringEvent({
-    type: 'error',
+    type: 'js_error',
     level: 'error',
     message: normalized.message,
     contexts: {
@@ -344,7 +366,7 @@ export function reportCustomMonitoringEvent(
 ) {
   Sentry.addBreadcrumb({ message, level });
   sendLocalMonitoringEvent({
-    type: 'custom',
+    type: 'business',
     level,
     message,
     extra

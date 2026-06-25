@@ -272,7 +272,7 @@ export function MonitoringDashboard({ onBack }: { onBack?: () => void }) {
       sorter: (a, b) => compareText(a.type, b.type),
       render: (value: string, record) => (
         <Space>
-          <Tag color={value === 'error' || value === 'unhandledrejection' ? 'red' : value === 'performance' ? 'blue' : 'default'}>
+          <Tag color={value === 'js_error' || value === 'promise_error' || value === 'api_error' ? 'red' : value === 'performance' ? 'blue' : 'default'}>
             {value}
           </Tag>
           {record.tags?.metric ? <Tag>{record.tags.metric}</Tag> : null}
@@ -319,7 +319,7 @@ export function MonitoringDashboard({ onBack }: { onBack?: () => void }) {
     .sort((a, b) => b - a);
   const maxLongTask = longTaskDurations[0] ?? 0;
   const topSlowResources = events
-    .filter((event) => event.tags?.metric === 'slow-resource' || event.type === 'resource')
+    .filter((event) => event.tags?.metric === 'slow-resource')
     .map((event) => ({
       name: event.message,
       duration: getMetricNumber(event, 'duration') ?? getMetricNumber(event, 'value') ?? 0
@@ -381,12 +381,12 @@ export function MonitoringDashboard({ onBack }: { onBack?: () => void }) {
   const typeEntries = Object.entries(summary?.byType || {}).sort((a, b) => b[1] - a[1]);
   const topType = typeEntries[0];
   const typePerf = summary?.byType.performance ?? 0;
-  const typeCustom = summary?.byType.custom ?? 0;
-  const typeResource = summary?.byType.resource ?? 0;
-  const typeOther = Math.max(totalEvents - typePerf - typeCustom - typeResource, 0);
+  const typeBusiness = summary?.byType.business ?? 0;
+  const typeApiError = summary?.byType.api_error ?? 0;
+  const typeOther = Math.max(totalEvents - typePerf - typeBusiness - typeApiError, 0);
   const donutTotal = Math.max(totalEvents, 1);
   const donutStyle = {
-    background: `conic-gradient(var(--accent) 0 ${(typePerf / donutTotal) * 100}%, #2fc9b5 ${(typePerf / donutTotal) * 100}% ${((typePerf + typeCustom) / donutTotal) * 100}%, var(--warn) ${((typePerf + typeCustom) / donutTotal) * 100}% ${((typePerf + typeCustom + typeResource) / donutTotal) * 100}%, var(--text-3) ${((typePerf + typeCustom + typeResource) / donutTotal) * 100}% 100%)`
+    background: `conic-gradient(var(--accent) 0 ${(typePerf / donutTotal) * 100}%, #2fc9b5 ${(typePerf / donutTotal) * 100}% ${((typePerf + typeBusiness) / donutTotal) * 100}%, var(--warn) ${((typePerf + typeBusiness) / donutTotal) * 100}% ${((typePerf + typeBusiness + typeApiError) / donutTotal) * 100}%, var(--text-3) ${((typePerf + typeBusiness + typeApiError) / donutTotal) * 100}% 100%)`
   };
   const pageEntries = Object.entries(summary?.pages || {}).sort((a, b) => b[1] - a[1]);
   const kpiCards = [
@@ -615,11 +615,11 @@ export function MonitoringDashboard({ onBack }: { onBack?: () => void }) {
                 style={{ width: 160 }}
                 options={[
                   { label: '全部类型', value: 'all' },
-                  { label: 'Error', value: 'error' },
-                  { label: 'Unhandled', value: 'unhandledrejection' },
+                  { label: 'JS Error', value: 'js_error' },
+                  { label: 'Promise Error', value: 'promise_error' },
+                  { label: 'API Error', value: 'api_error' },
                   { label: 'Performance', value: 'performance' },
-                  { label: 'Resource', value: 'resource' },
-                  { label: 'Custom', value: 'custom' }
+                  { label: 'Business', value: 'business' }
                 ]}
               />
               <Input.Search

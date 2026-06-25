@@ -5,14 +5,17 @@ import type { Context } from 'koa';
 import Router from 'koa-router';
 import { getDefaultChatModel, getOpenAiCompatibleClient } from '../provider';
 
-type MonitoringLevel = 'debug' | 'info' | 'warning' | 'error' | 'fatal';
-type MonitoringEventType = 'error' | 'unhandledrejection' | 'performance' | 'resource' | 'custom';
+type MonitoringLevel = 'info' | 'warning' | 'error' | 'fatal';
+type MonitoringType = 'js_error' | 'promise_error' | 'api_error' | 'performance' | 'business';
+type IncomingMonitoringLevel = MonitoringLevel | 'debug';
+type LegacyMonitoringType = 'error' | 'unhandledrejection' | 'resource' | 'custom';
+type IncomingMonitoringType = MonitoringType | LegacyMonitoringType;
 
 interface MonitoringEvent {
   id?: string;
   timestamp?: string;
-  type?: MonitoringEventType;
-  level?: MonitoringLevel;
+  type?: IncomingMonitoringType;
+  level?: IncomingMonitoringLevel;
   message?: string;
   source?: string;
   pageUrl?: string;
@@ -24,11 +27,13 @@ interface MonitoringEvent {
   extra?: Record<string, unknown>;
 }
 
-interface StoredMonitoringEvent extends Required<Pick<MonitoringEvent, 'type' | 'message'>> {
+interface StoredMonitoringEvent {
   schemaVersion: 'monitoring.event.v1';
   id: string;
   timestamp: string;
   receivedAt: string;
+  type: MonitoringType;
+  message: string;
   level: MonitoringLevel;
   source: string;
   fingerprint: string;
@@ -57,6 +62,9 @@ const INGEST_FLUSH_INTERVAL_MS = Number(process.env.MONITORING_INGEST_FLUSH_INTE
 const INGEST_FLUSH_BATCH_SIZE = Number(process.env.MONITORING_INGEST_FLUSH_BATCH_SIZE || 100);
 const CIRCUIT_FAILURE_THRESHOLD = Number(process.env.MONITORING_CIRCUIT_FAILURE_THRESHOLD || 3);
 const CIRCUIT_OPEN_MS = Number(process.env.MONITORING_CIRCUIT_OPEN_MS || 30_000);
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const INFO_SAMPLE_RATE = Number(process.env.MONITORING_INFO_SAMPLE_RATE || 0.1);
+const DEBUG_ENABLED = !IS_PRODUCTION || process.env.MONITORING_DEBUG === '1';
 
 let writeQueue = Promise.resolve();
 let ingestBuffer: StoredMonitoringEvent[] = [];
@@ -179,24 +187,29 @@ function sanitizeValue(value: unknown, pathLabel = 'root', depth = 0): Sanitized
   return { value: out, fields };
 }
 
-function normalizeType(input?: MonitoringEventType): MonitoringEventType {
+function normalizeType(input?: IncomingMonitoringType): MonitoringType {
   if (
-    input === 'error' ||
-    input === 'unhandledrejection' ||
+    input === 'js_error' ||
+    input === 'promise_error' ||
+    input === 'api_error' ||
     input === 'performance' ||
-    input === 'resource' ||
-    input === 'custom'
+    input === 'business'
   ) {
     return input;
   }
-  return 'custom';
+  if (input === 'error') return 'js_error';
+  if (input === 'unhandledrejection') return 'promise_error';
+  if (input === 'resource') return 'performance';
+  if (input === 'custom') return 'business';
+  return 'business';
 }
 
-function normalizeLevel(input: MonitoringEvent['level'], type: MonitoringEventType): MonitoringLevel {
-  if (input === 'debug' || input === 'info' || input === 'warning' || input === 'error' || input === 'fatal') {
+function normalizeLevel(input: MonitoringEvent['level'], type: MonitoringType): MonitoringLevel | null {
+  if (input === 'info' || input === 'warning' || input === 'error' || input === 'fatal') {
     return input;
   }
-  return type === 'error' || type === 'unhandledrejection' ? 'error' : 'info';
+  if (input === 'debug') return DEBUG_ENABLED ? 'info' : null;
+  return type === 'js_error' || type === 'promise_error' || type === 'api_error' ? 'error' : 'info';
 }
 
 function normalizeTimestamp(input?: string): string {
@@ -237,6 +250,14 @@ function eventFingerprint(event: Pick<StoredMonitoringEvent, 'type' | 'message' 
   return stableHash([event.type, normalizedMessage, event.pageUrl || '', event.release || ''].join('|'));
 }
 
+function shouldSampleEvent(level: MonitoringLevel): boolean {
+  if (!IS_PRODUCTION) return true;
+  if (level !== 'info') return true;
+  if (INFO_SAMPLE_RATE >= 1) return true;
+  if (INFO_SAMPLE_RATE <= 0) return false;
+  return Math.random() < INFO_SAMPLE_RATE;
+}
+
 async function ensureStore() {
   await fs.mkdir(DATA_DIR, { recursive: true });
   try {
@@ -251,10 +272,24 @@ async function readEvents(): Promise<StoredMonitoringEvent[]> {
   try {
     const raw = await fs.readFile(EVENTS_FILE, 'utf8');
     const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? (parsed as StoredMonitoringEvent[]) : [];
+    return Array.isArray(parsed) ? (parsed as Array<StoredMonitoringEvent & { type?: IncomingMonitoringType }>).map(coerceStoredEvent) : [];
   } catch {
     return [];
   }
+}
+
+function coerceStoredEvent(event: StoredMonitoringEvent & { type?: IncomingMonitoringType; level?: IncomingMonitoringLevel }): StoredMonitoringEvent {
+  const type = normalizeType(event.type);
+  const level = normalizeLevel(event.level, type) || 'info';
+  const next = {
+    ...event,
+    schemaVersion: 'monitoring.event.v1' as const,
+    type,
+    level,
+    fingerprint: event.fingerprint || ''
+  };
+  next.fingerprint = next.fingerprint || eventFingerprint(next);
+  return next;
 }
 
 async function writeEvents(events: StoredMonitoringEvent[]) {
@@ -266,6 +301,9 @@ async function writeEvents(events: StoredMonitoringEvent[]) {
 function normalizeEvent(input: MonitoringEvent, ctx: Context): StoredMonitoringEvent {
   const type = normalizeType(input.type);
   const level = normalizeLevel(input.level, type);
+  if (!level) {
+    throw new Error('debug monitoring event is disabled');
+  }
   const messageSource =
     typeof input.message === 'string' && input.message.trim()
       ? input.message.trim().slice(0, 2000)
@@ -350,7 +388,12 @@ function buildSummary(events: StoredMonitoringEvent[]) {
     total: events.length,
     last24h: last24h.length,
     errorsLast24h: last24h.filter(
-      (event) => event.type === 'error' || event.type === 'unhandledrejection' || event.level === 'error'
+      (event) =>
+        event.type === 'js_error' ||
+        event.type === 'promise_error' ||
+        event.type === 'api_error' ||
+        event.level === 'error' ||
+        event.level === 'fatal'
     ).length,
     byType: countBy(events, (event) => event.type),
     byLevel: countBy(events, (event) => event.level),
@@ -514,7 +557,16 @@ export function createMonitoringRouter(): Router {
         ? body.events
         : [body as MonitoringEvent];
     const limitedRawEvents = rawEvents.filter(Boolean).slice(0, MAX_EVENTS_PER_REQUEST);
-    const normalized = limitedRawEvents.map((event) => normalizeEvent(event, ctx));
+    const normalized = limitedRawEvents
+      .map((event) => {
+        try {
+          return normalizeEvent(event, ctx);
+        } catch {
+          return null;
+        }
+      })
+      .filter((event): event is StoredMonitoringEvent => event != null)
+      .filter((event) => shouldSampleEvent(event.level));
     const result = enqueueEvents(normalized);
 
     ctx.status = result.accepted > 0 ? 202 : 503;
@@ -532,7 +584,7 @@ export function createMonitoringRouter(): Router {
 
   router.get('/api/monitoring/events', async (ctx: Context) => {
     const events = await readEvents();
-    const type = typeof ctx.query.type === 'string' ? ctx.query.type : '';
+    const type = typeof ctx.query.type === 'string' ? normalizeType(ctx.query.type as IncomingMonitoringType) : '';
     const level = typeof ctx.query.level === 'string' ? ctx.query.level : '';
     const limit = parseLimit(ctx);
     const filtered = events.filter((event) => {
