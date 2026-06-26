@@ -12,6 +12,12 @@ import { a2uiAgentDbg, a2uiAgentInfo } from '../debug/a2uiAgentLog';
 import type { A2uiAgentToolDef } from '../agent/defaultA2uiTools';
 import { mergeA2uiAgentTools } from '../agent/mergeA2uiTools';
 
+const SSE_HEARTBEAT_MS = 10000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** 默认使用 SSE；`sse=0|false|no|off|json` 时改为一次性 JSON（`{ events }`）。 */
 function useSseFromQuery(ctx: Context): boolean {
   const v = ctx.query.sse;
@@ -144,10 +150,25 @@ export function createAgentRouter(): Router {
     ctx.set('Cache-Control', 'no-cache');
     ctx.set('Connection', 'keep-alive');
     ctx.set('X-Accel-Buffering', 'no');
+    ctx.set('X-SSE-Heartbeat-Ms', String(SSE_HEARTBEAT_MS));
 
     async function* eventStrings(): AsyncGenerator<string> {
-      for await (const event of agentEvents()) {
-        yield encoder.encodeSSE(event as BaseEvent);
+      const iterator = agentEvents();
+      let nextEvent = iterator.next();
+      while (true) {
+        const result = await Promise.race([
+          nextEvent.then((value) => ({ kind: 'event' as const, value })),
+          sleep(SSE_HEARTBEAT_MS).then(() => ({ kind: 'heartbeat' as const }))
+        ]);
+
+        if (result.kind === 'heartbeat') {
+          yield ': ping\n\n';
+          continue;
+        }
+
+        if (result.value.done) break;
+        yield encoder.encodeSSE(result.value.value as BaseEvent);
+        nextEvent = iterator.next();
       }
     }
 
