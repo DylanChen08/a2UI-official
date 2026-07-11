@@ -30,12 +30,22 @@ let initialized = false;
 const INFO_SAMPLE_RATE = Number(import.meta.env.VITE_MONITORING_INFO_SAMPLE_RATE || 0.1);
 const DEBUG_ENABLED =
   import.meta.env.DEV || import.meta.env.VITE_MONITORING_DEBUG === '1';
+const ERROR_DEDUPE_WINDOW_MS = Number(import.meta.env.VITE_MONITORING_ERROR_DEDUPE_WINDOW_MS || 5_000);
+const ERROR_DEBOUNCE_MS = Number(import.meta.env.VITE_MONITORING_ERROR_DEBOUNCE_MS || 250);
+const SERVER_DEGRADE_TTL_MS = Number(import.meta.env.VITE_MONITORING_SERVER_DEGRADE_TTL_MS || 30_000);
 
 const SENSITIVE_KEY_PATTERN =
   /token|cookie|authorization|password|passwd|secret|api[-_]?key|session|credential|jwt|openid|access[-_]?key/i;
 const EMAIL_PATTERN = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 const PHONE_PATTERN = /(?<!\d)1[3-9]\d{9}(?!\d)/g;
 const ID_CARD_PATTERN = /(?<!\d)\d{6}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx](?!\d)/g;
+const ERROR_EVENT_TYPES = new Set<MonitoringEventType>(['js_error', 'promise_error', 'api_error']);
+
+const recentErrorReports = new Map<string, number>();
+const debouncedErrorReports = new Map<string, { event: LocalMonitoringEvent; timer: number }>();
+let serverDegradeUntil = 0;
+let serverDegradeSampleRate = 1;
+let serverDegradeDropNonCritical = false;
 
 function isLocalHost(hostname: string) {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
@@ -129,11 +139,101 @@ function normalizeMonitoringLevel(level: unknown, type: MonitoringEventType): Mo
 }
 
 function shouldSampleEvent(level: MonitoringLevel): boolean {
+  if (Date.now() < serverDegradeUntil) {
+    if (serverDegradeDropNonCritical && level === 'info') return false;
+    if (serverDegradeSampleRate < 1 && Math.random() >= serverDegradeSampleRate) return false;
+  }
   if (!import.meta.env.PROD) return true;
   if (level !== 'info') return true;
   if (INFO_SAMPLE_RATE >= 1) return true;
   if (INFO_SAMPLE_RATE <= 0) return false;
   return Math.random() < INFO_SAMPLE_RATE;
+}
+
+function buildLocalEventKey(event: LocalMonitoringEvent): string {
+  const normalizedMessage = event.message.replace(/\d+/g, '#').slice(0, 240);
+  const errorContext = event.contexts?.error as Record<string, unknown> | undefined;
+  const errorName = typeof errorContext?.name === 'string' ? errorContext.name : '';
+  const location = event.contexts?.location as Record<string, unknown> | undefined;
+  const file = typeof location?.file === 'string' ? location.file : '';
+  const line = typeof location?.line === 'number' ? location.line : '';
+  return [event.type, event.level || '', errorName, normalizedMessage, file, line].join('|');
+}
+
+function pruneRecentErrorReports(now: number) {
+  for (const [key, reportedAt] of recentErrorReports.entries()) {
+    if (now - reportedAt > ERROR_DEDUPE_WINDOW_MS) recentErrorReports.delete(key);
+  }
+}
+
+function shouldDropRecentError(key: string): boolean {
+  if (ERROR_DEDUPE_WINDOW_MS <= 0) return false;
+  const now = Date.now();
+  pruneRecentErrorReports(now);
+  const reportedAt = recentErrorReports.get(key);
+  if (reportedAt && now - reportedAt <= ERROR_DEDUPE_WINDOW_MS) return true;
+  return false;
+}
+
+function postLocalMonitoringEvent(payload: LocalMonitoringEvent) {
+  try {
+    const body = JSON.stringify(payload);
+    void (async () => {
+      for (const url of getMonitoringApiCandidates(MONITORING_ENDPOINT)) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            keepalive: true,
+            body
+          });
+          try {
+            const result = await res.clone().json();
+            const degrade = result?.clientDegrade;
+            if (degrade && typeof degrade === 'object') {
+              serverDegradeUntil = Date.now() + SERVER_DEGRADE_TTL_MS;
+              serverDegradeSampleRate = Number(degrade.sampleRate ?? 1);
+              serverDegradeDropNonCritical = Boolean(degrade.dropNonCritical);
+            }
+          } catch {
+            /* ignore non-json monitoring responses */
+          }
+          if (res.ok) {
+            return;
+          }
+        } catch {
+          /* try next candidate */
+        }
+      }
+    })();
+  } catch {
+    /* monitoring must never break the app */
+  }
+}
+
+function flushDebouncedError(key: string) {
+  const pending = debouncedErrorReports.get(key);
+  if (!pending) return;
+  debouncedErrorReports.delete(key);
+  if (shouldDropRecentError(key)) return;
+  recentErrorReports.set(key, Date.now());
+  postLocalMonitoringEvent(pending.event);
+}
+
+function enqueueDebouncedErrorReport(key: string, event: LocalMonitoringEvent) {
+  if (ERROR_DEBOUNCE_MS <= 0) {
+    if (shouldDropRecentError(key)) return;
+    recentErrorReports.set(key, Date.now());
+    postLocalMonitoringEvent(event);
+    return;
+  }
+
+  const pending = debouncedErrorReports.get(key);
+  if (pending) {
+    window.clearTimeout(pending.timer);
+  }
+  const timer = window.setTimeout(() => flushDebouncedError(key), ERROR_DEBOUNCE_MS);
+  debouncedErrorReports.set(key, { event, timer });
 }
 
 function sendLocalMonitoringEvent(event: LocalMonitoringEvent) {
@@ -153,26 +253,11 @@ function sendLocalMonitoringEvent(event: LocalMonitoringEvent) {
     }
   }) as LocalMonitoringEvent;
 
-  try {
-    const body = JSON.stringify(payload);
-    void (async () => {
-      for (const url of getMonitoringApiCandidates(MONITORING_ENDPOINT)) {
-        try {
-          const res = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            keepalive: true,
-            body
-          });
-          if (res.ok) return;
-        } catch {
-          /* try next candidate */
-        }
-      }
-    })();
-  } catch {
-    /* monitoring must never break the app */
+  if (ERROR_EVENT_TYPES.has(payload.type)) {
+    enqueueDebouncedErrorReport(buildLocalEventKey(payload), payload);
+    return;
   }
+  postLocalMonitoringEvent(payload);
 }
 
 function normalizeError(error: unknown) {

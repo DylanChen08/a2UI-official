@@ -10,6 +10,7 @@ type MonitoringType = 'js_error' | 'promise_error' | 'api_error' | 'performance'
 type IncomingMonitoringLevel = MonitoringLevel | 'debug';
 type LegacyMonitoringType = 'error' | 'unhandledrejection' | 'resource' | 'custom';
 type IncomingMonitoringType = MonitoringType | LegacyMonitoringType;
+type CircuitState = 'closed' | 'open' | 'half_open';
 
 interface MonitoringEvent {
   id?: string;
@@ -62,6 +63,14 @@ const INGEST_FLUSH_INTERVAL_MS = Number(process.env.MONITORING_INGEST_FLUSH_INTE
 const INGEST_FLUSH_BATCH_SIZE = Number(process.env.MONITORING_INGEST_FLUSH_BATCH_SIZE || 100);
 const CIRCUIT_FAILURE_THRESHOLD = Number(process.env.MONITORING_CIRCUIT_FAILURE_THRESHOLD || 3);
 const CIRCUIT_OPEN_MS = Number(process.env.MONITORING_CIRCUIT_OPEN_MS || 30_000);
+const CIRCUIT_HALF_OPEN_MS = Number(process.env.MONITORING_CIRCUIT_HALF_OPEN_MS || 15_000);
+const CIRCUIT_HALF_OPEN_SAMPLE_RATE = Number(process.env.MONITORING_CIRCUIT_HALF_OPEN_SAMPLE_RATE || 0.1);
+const CIRCUIT_HALF_OPEN_SUCCESS_THRESHOLD = Number(process.env.MONITORING_CIRCUIT_HALF_OPEN_SUCCESS_THRESHOLD || 3);
+const STORM_ERROR_RATE_PER_SEC = Number(process.env.MONITORING_STORM_ERROR_RATE_PER_SEC || 100);
+const STORM_QUEUE_PRESSURE_RATIO = Number(process.env.MONITORING_STORM_QUEUE_PRESSURE_RATIO || 0.8);
+const STORM_CPU_RATIO = Number(process.env.MONITORING_STORM_CPU_RATIO || 0.9);
+const STORM_SUMMARY_FLUSH_INTERVAL_MS = Number(process.env.MONITORING_STORM_SUMMARY_FLUSH_INTERVAL_MS || 1_000);
+const FINGERPRINT_DEDUPE_WINDOW_MS = Number(process.env.MONITORING_FINGERPRINT_DEDUPE_WINDOW_MS || 5_000);
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 const INFO_SAMPLE_RATE = Number(process.env.MONITORING_INFO_SAMPLE_RATE || 0.1);
 const DEBUG_ENABLED = !IS_PRODUCTION || process.env.MONITORING_DEBUG === '1';
@@ -70,9 +79,28 @@ let writeQueue = Promise.resolve();
 let ingestBuffer: StoredMonitoringEvent[] = [];
 let flushTimer: ReturnType<typeof setTimeout> | undefined;
 let consecutiveWriteFailures = 0;
+let circuitState: CircuitState = 'closed';
 let circuitOpenedUntil = 0;
+let circuitHalfOpenUntil = 0;
+let halfOpenWriteSuccesses = 0;
+let lastStormSummaryFlushAt = 0;
+let lastCpuUsage = process.cpuUsage();
+let lastCpuSampleAt = process.hrtime.bigint();
+let lastCpuRatio = 0;
 
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+const recentFingerprints = new Map<string, number>();
+let recentErrorTimestamps: number[] = [];
+const stormSummaries = new Map<string, {
+  count: number;
+  type: MonitoringType;
+  level: MonitoringLevel;
+  message: string;
+  pageUrl?: string;
+  release?: string;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}>();
 
 const SENSITIVE_KEY_PATTERN =
   /token|cookie|authorization|password|passwd|secret|api[-_]?key|session|credential|jwt|openid|access[-_]?key/i;
@@ -250,6 +278,94 @@ function eventFingerprint(event: Pick<StoredMonitoringEvent, 'type' | 'message' 
   return stableHash([event.type, normalizedMessage, event.pageUrl || '', event.release || ''].join('|'));
 }
 
+function pruneRecentFingerprints(now: number) {
+  for (const [fingerprint, lastSeenAt] of recentFingerprints.entries()) {
+    if (now - lastSeenAt > FINGERPRINT_DEDUPE_WINDOW_MS) {
+      recentFingerprints.delete(fingerprint);
+    }
+  }
+}
+
+function filterDuplicateFingerprints(events: StoredMonitoringEvent[]): {
+  events: StoredMonitoringEvent[];
+  dropped: number;
+} {
+  if (FINGERPRINT_DEDUPE_WINDOW_MS <= 0) return { events, dropped: 0 };
+  const now = Date.now();
+  pruneRecentFingerprints(now);
+  const accepted: StoredMonitoringEvent[] = [];
+  let dropped = 0;
+
+  for (const event of events) {
+    const lastSeenAt = recentFingerprints.get(event.fingerprint);
+    if (lastSeenAt && now - lastSeenAt <= FINGERPRINT_DEDUPE_WINDOW_MS) {
+      dropped += 1;
+      continue;
+    }
+    recentFingerprints.set(event.fingerprint, now);
+    accepted.push(event);
+  }
+
+  return { events: accepted, dropped };
+}
+
+function isErrorEvent(event: Pick<StoredMonitoringEvent, 'type' | 'level'>): boolean {
+  return (
+    event.type === 'js_error' ||
+    event.type === 'promise_error' ||
+    event.type === 'api_error' ||
+    event.level === 'error' ||
+    event.level === 'fatal'
+  );
+}
+
+function getCpuRatio(): number {
+  const now = process.hrtime.bigint();
+  const usage = process.cpuUsage();
+  const elapsedMicros = Number(now - lastCpuSampleAt) / 1000;
+  if (elapsedMicros <= 0) return lastCpuRatio;
+
+  const usedMicros =
+    usage.user + usage.system - lastCpuUsage.user - lastCpuUsage.system;
+  lastCpuUsage = usage;
+  lastCpuSampleAt = now;
+  lastCpuRatio = Math.max(0, usedMicros / elapsedMicros);
+  return lastCpuRatio;
+}
+
+function recordErrorRate(events: StoredMonitoringEvent[]) {
+  const now = Date.now();
+  const errorCount = events.filter(isErrorEvent).length;
+  if (errorCount > 0) {
+    recentErrorTimestamps.push(...Array.from({ length: errorCount }, () => now));
+  }
+  recentErrorTimestamps = recentErrorTimestamps.filter((timestamp) => now - timestamp <= 1000);
+}
+
+function getCurrentErrorRatePerSec(): number {
+  const now = Date.now();
+  recentErrorTimestamps = recentErrorTimestamps.filter((timestamp) => now - timestamp <= 1000);
+  return recentErrorTimestamps.length;
+}
+
+function getQueuePressureRatio(): number {
+  if (INGEST_BUFFER_MAX_EVENTS <= 0) return 1;
+  return ingestBuffer.length / INGEST_BUFFER_MAX_EVENTS;
+}
+
+function getCircuitTelemetry() {
+  return {
+    state: circuitState,
+    errorRatePerSec: getCurrentErrorRatePerSec(),
+    cpuRatio: Number(getCpuRatio().toFixed(4)),
+    queuePressureRatio: Number(getQueuePressureRatio().toFixed(4)),
+    buffered: ingestBuffer.length,
+    openRemainingMs: Math.max(0, circuitOpenedUntil - Date.now()),
+    halfOpenRemainingMs: Math.max(0, circuitHalfOpenUntil - Date.now()),
+    stormSummaryFingerprints: stormSummaries.size
+  };
+}
+
 function shouldSampleEvent(level: MonitoringLevel): boolean {
   if (!IS_PRODUCTION) return true;
   if (level !== 'info') return true;
@@ -416,7 +532,8 @@ function buildSummary(events: StoredMonitoringEvent[]) {
     store: {
       file: EVENTS_FILE,
       maxEvents: MAX_STORED_EVENTS
-    }
+    },
+    circuit: getCircuitTelemetry()
   };
 }
 
@@ -426,12 +543,127 @@ function parseLimit(ctx: Context) {
   return Math.max(1, Math.min(1000, Math.floor(raw)));
 }
 
-function isCircuitOpen(): boolean {
-  return Date.now() < circuitOpenedUntil;
+function isStormPressureHigh(): boolean {
+  return (
+    getCurrentErrorRatePerSec() >= STORM_ERROR_RATE_PER_SEC ||
+    getQueuePressureRatio() >= STORM_QUEUE_PRESSURE_RATIO ||
+    getCpuRatio() >= STORM_CPU_RATIO
+  );
 }
 
-function openCircuit() {
+function openCircuit(reason: string) {
+  circuitState = 'open';
   circuitOpenedUntil = Date.now() + CIRCUIT_OPEN_MS;
+  circuitHalfOpenUntil = 0;
+  halfOpenWriteSuccesses = 0;
+  lastStormSummaryFlushAt = 0;
+  if (DEBUG_ENABLED) {
+    console.warn('[monitoring] circuit opened', {
+      reason,
+      ...getCircuitTelemetry()
+    });
+  }
+}
+
+function closeCircuit() {
+  circuitState = 'closed';
+  circuitOpenedUntil = 0;
+  circuitHalfOpenUntil = 0;
+  halfOpenWriteSuccesses = 0;
+  stormSummaries.clear();
+}
+
+function enterHalfOpenCircuit() {
+  circuitState = 'half_open';
+  circuitOpenedUntil = 0;
+  circuitHalfOpenUntil = Date.now() + CIRCUIT_HALF_OPEN_MS;
+  halfOpenWriteSuccesses = 0;
+  lastStormSummaryFlushAt = 0;
+}
+
+function refreshCircuitState() {
+  const now = Date.now();
+  if (circuitState === 'open' && now >= circuitOpenedUntil) {
+    enterHalfOpenCircuit();
+  }
+  if (circuitState === 'half_open') {
+    if (isStormPressureHigh()) {
+      openCircuit('half-open-pressure');
+      return;
+    }
+    if (
+      halfOpenWriteSuccesses >= CIRCUIT_HALF_OPEN_SUCCESS_THRESHOLD ||
+      now >= circuitHalfOpenUntil
+    ) {
+      closeCircuit();
+    }
+  }
+}
+
+function isFullLogWriteAllowed(): boolean {
+  refreshCircuitState();
+  if (circuitState === 'closed') return true;
+  if (circuitState === 'open') return false;
+  if (CIRCUIT_HALF_OPEN_SAMPLE_RATE >= 1) return true;
+  if (CIRCUIT_HALF_OPEN_SAMPLE_RATE <= 0) return false;
+  return Math.random() < CIRCUIT_HALF_OPEN_SAMPLE_RATE;
+}
+
+function addStormSummaries(events: StoredMonitoringEvent[]) {
+  const now = new Date().toISOString();
+  for (const event of events) {
+    if (!isErrorEvent(event)) continue;
+    const current = stormSummaries.get(event.fingerprint);
+    if (current) {
+      current.count += 1;
+      current.lastSeenAt = now;
+      continue;
+    }
+    stormSummaries.set(event.fingerprint, {
+      count: 1,
+      type: event.type,
+      level: event.level,
+      message: event.message,
+      pageUrl: event.pageUrl,
+      release: event.release,
+      firstSeenAt: now,
+      lastSeenAt: now
+    });
+  }
+}
+
+function drainStormSummaryEvents(): StoredMonitoringEvent[] {
+  if (stormSummaries.size === 0) return [];
+  const now = new Date().toISOString();
+  const events = Array.from(stormSummaries.entries()).map(([fingerprint, summary]) => ({
+    schemaVersion: 'monitoring.event.v1' as const,
+    id: newEventId(),
+    timestamp: summary.lastSeenAt,
+    receivedAt: now,
+    type: summary.type,
+    level: summary.level,
+    message: `[storm-summary] fingerprint=${fingerprint} count=${summary.count}`,
+    source: 'server',
+    fingerprint,
+    tags: {
+      mode: 'storm-summary',
+      count: String(summary.count)
+    },
+    governance: {
+      sanitized: true,
+      sanitizedFields: ['storm.fullLogSuppressed']
+    }
+  }));
+  stormSummaries.clear();
+  lastStormSummaryFlushAt = Date.now();
+  return events;
+}
+
+function maybeDrainStormSummaryEvents(): StoredMonitoringEvent[] {
+  if (Date.now() - lastStormSummaryFlushAt < STORM_SUMMARY_FLUSH_INTERVAL_MS) {
+    return [];
+  }
+  return drainStormSummaryEvents();
 }
 
 function scheduleFlush() {
@@ -450,10 +682,14 @@ async function flushIngestBuffer(): Promise<void> {
       const current = await readEvents();
       await writeEvents([...current, ...batch]);
       consecutiveWriteFailures = 0;
+      if (circuitState === 'half_open') {
+        halfOpenWriteSuccesses += 1;
+        refreshCircuitState();
+      }
     } catch (e) {
       consecutiveWriteFailures += 1;
       ingestBuffer = [...batch, ...ingestBuffer].slice(0, INGEST_BUFFER_MAX_EVENTS);
-      if (consecutiveWriteFailures >= CIRCUIT_FAILURE_THRESHOLD) openCircuit();
+      if (consecutiveWriteFailures >= CIRCUIT_FAILURE_THRESHOLD) openCircuit('write-failures');
     }
   });
   try {
@@ -461,24 +697,62 @@ async function flushIngestBuffer(): Promise<void> {
   } catch {
     /* circuit state is updated above */
   }
-  if (ingestBuffer.length > 0 && !isCircuitOpen()) scheduleFlush();
+  if (ingestBuffer.length > 0 && circuitState !== 'open') scheduleFlush();
 }
 
-function enqueueEvents(events: StoredMonitoringEvent[]): { accepted: number; dropped: number } {
-  if (isCircuitOpen()) {
-    return { accepted: 0, dropped: events.length };
-  }
+function enqueueEvents(events: StoredMonitoringEvent[]): {
+  accepted: number;
+  dropped: number;
+  summarized: number;
+  mode: CircuitState;
+} {
+  refreshCircuitState();
   pruneRateLimitBuckets();
+  if (isStormPressureHigh()) openCircuit('storm-pressure');
+
+  if (circuitState === 'open') {
+    addStormSummaries(events);
+    const summaryEvents = maybeDrainStormSummaryEvents();
+    const capacity = Math.max(0, INGEST_BUFFER_MAX_EVENTS - ingestBuffer.length);
+    const acceptedSummaryEvents = summaryEvents.slice(0, capacity);
+    const summarized = events.filter(isErrorEvent).length;
+    const dropped = (events.length - summarized) + (summaryEvents.length - acceptedSummaryEvents.length);
+    ingestBuffer.push(...acceptedSummaryEvents);
+    if (acceptedSummaryEvents.length > 0) scheduleFlush();
+    return {
+      accepted: acceptedSummaryEvents.length,
+      dropped,
+      summarized,
+      mode: circuitState
+    };
+  }
+
+  const writableEvents = circuitState === 'half_open'
+    ? events.filter((event) => !isErrorEvent(event) || isFullLogWriteAllowed())
+    : events;
+  const summarized = circuitState === 'half_open'
+    ? events.length - writableEvents.length
+    : 0;
+  if (circuitState === 'half_open') {
+    addStormSummaries(events.filter((event) => !writableEvents.includes(event)));
+    writableEvents.push(...maybeDrainStormSummaryEvents());
+  }
+
   const capacity = Math.max(0, INGEST_BUFFER_MAX_EVENTS - ingestBuffer.length);
-  const acceptedEvents = events.slice(0, capacity);
-  const dropped = events.length - acceptedEvents.length;
+  const acceptedEvents = writableEvents.slice(0, capacity);
+  const dropped = Math.max(0, writableEvents.length - acceptedEvents.length);
   ingestBuffer.push(...acceptedEvents);
   if (ingestBuffer.length >= INGEST_FLUSH_BATCH_SIZE) {
     void flushIngestBuffer();
   } else {
     scheduleFlush();
   }
-  return { accepted: acceptedEvents.length, dropped };
+  return {
+    accepted: acceptedEvents.length,
+    dropped,
+    summarized,
+    mode: circuitState
+  };
 }
 
 function buildAnalysisPayload(events: StoredMonitoringEvent[]) {
@@ -535,18 +809,17 @@ export function createMonitoringRouter(): Router {
   const router = new Router();
 
   router.post('/api/monitoring/events', async (ctx: Context) => {
-    if (isCircuitOpen()) {
-      ctx.status = 503;
-      ctx.set('Retry-After', String(Math.ceil((circuitOpenedUntil - Date.now()) / 1000)));
-      ctx.body = { error: 'monitoring ingest circuit open' };
-      return;
-    }
+    refreshCircuitState();
 
     const rateLimit = checkRateLimit(ctx);
     if (!rateLimit.ok) {
       ctx.status = 429;
       ctx.set('Retry-After', String(rateLimit.retryAfterSeconds));
-      ctx.body = { error: 'monitoring ingest rate limited', retryAfterSeconds: rateLimit.retryAfterSeconds };
+      ctx.body = {
+        error: 'monitoring ingest rate limited',
+        retryAfterSeconds: rateLimit.retryAfterSeconds,
+        circuit: getCircuitTelemetry()
+      };
       return;
     }
 
@@ -567,14 +840,27 @@ export function createMonitoringRouter(): Router {
       })
       .filter((event): event is StoredMonitoringEvent => event != null)
       .filter((event) => shouldSampleEvent(event.level));
-    const result = enqueueEvents(normalized);
+    recordErrorRate(normalized);
+    const deduped = filterDuplicateFingerprints(normalized);
+    const result = enqueueEvents(deduped.events);
 
-    ctx.status = result.accepted > 0 ? 202 : 503;
+    const telemetry = getCircuitTelemetry();
+    if (telemetry.state === 'open') {
+      ctx.set('Retry-After', String(Math.max(1, Math.ceil(telemetry.openRemainingMs / 1000))));
+    }
+    ctx.status = result.accepted > 0 || result.summarized > 0 ? 202 : 503;
     ctx.body = {
-      ok: result.accepted > 0,
+      ok: result.accepted > 0 || result.summarized > 0,
       accepted: result.accepted,
-      dropped: result.dropped + Math.max(0, rawEvents.length - limitedRawEvents.length),
+      dropped: result.dropped + deduped.dropped + Math.max(0, rawEvents.length - limitedRawEvents.length),
+      summarized: result.summarized,
       buffered: ingestBuffer.length,
+      circuit: telemetry,
+      clientDegrade: telemetry.state === 'open'
+        ? { sampleRate: 0.01, dropNonCritical: true }
+        : telemetry.state === 'half_open'
+          ? { sampleRate: CIRCUIT_HALF_OPEN_SAMPLE_RATE, dropNonCritical: false }
+          : undefined,
       governance: {
         data: 'sanitized-and-standardized',
         traffic: 'rate-limited-buffered-circuit-protected'
