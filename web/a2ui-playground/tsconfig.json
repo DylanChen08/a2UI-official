@@ -1,12 +1,13 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "outDir": "./dist",
+    /** vite 独占 ./dist；tsc -b（根 typecheck）的产物单独放，避免两者混写 */
+    "outDir": "./.tsbuild",
     "rootDir": "./src",
     "jsx": "react-jsx"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"],
+  "exclude": ["node_modules", "dist", ".tsbuild", "src/**/*.test.ts"],
   "references": [
     { "path": "../../packages/a2ui-core" },
     { "path": "../../packages/a2ui-react" }

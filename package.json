@@ -7,7 +7,7 @@
     "dev:web": "pnpm -F a2ui-playground dev",
     "dev:server": "pnpm -F a2ui-playground-server dev",
     "build": "pnpm -F a2ui-core -F a2ui-react build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -b"
   },
   "devDependencies": {
     "typescript": "^5.3.0"

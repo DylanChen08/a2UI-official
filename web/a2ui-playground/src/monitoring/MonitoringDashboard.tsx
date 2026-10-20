@@ -171,7 +171,7 @@ export function MonitoringDashboard({ onBack }: { onBack?: () => void }) {
   };
 
   useEffect(() => {
-    let timer: ReturnType<typeof window.setInterval> | undefined;
+    let timer: number | undefined;
 
     const stopPolling = () => {
       if (timer) {

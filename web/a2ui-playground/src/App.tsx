@@ -1263,20 +1263,10 @@ function App() {
           </div>
 
           <div className="panel-section nav-section">
-            <Button
-              block
-              type={activeView === 'playground' ? 'primary' : 'default'}
-              ghost={activeView === 'playground'}
-              onClick={() => setActiveView('playground')}
-            >
+            <Button block type="primary" ghost onClick={() => setActiveView('playground')}>
               Playground
             </Button>
-            <Button
-              block
-              type={activeView === 'monitoring' ? 'primary' : 'default'}
-              ghost={activeView === 'monitoring'}
-              onClick={openMonitoringDashboard}
-            >
+            <Button block onClick={openMonitoringDashboard}>
               前端监控后台
             </Button>
           </div>
@@ -1517,39 +1507,23 @@ function App() {
           <Header className="top-toolbar">
             <div>
               <Title level={4} className="workspace-title">
-                {activeView === 'monitoring' ? 'A2UI Monitoring' : 'A2UI Playground'}
+                A2UI Playground
               </Title>
-              <Text type="secondary">
-                {activeView === 'monitoring'
-                  ? '查看 Sentry 前端事件与本地 JSON 监控指标'
-                  : '实时渲染 Agent 输出的 A2UI 页面'}
-              </Text>
+              <Text type="secondary">实时渲染 Agent 输出的 A2UI 页面</Text>
             </div>
             <Space wrap>
-              {activeView === 'playground' ? (
-                <>
-                  <Tag color={llmChatOnly ? 'purple' : 'blue'}>{llmChatOnly ? 'Chat 模式' : 'Agent 模式'}</Tag>
-                  <Tag color={previewStatusColor}>● {previewStatus}</Tag>
-                  <Tag>组件 {componentCount}</Tag>
-                </>
-              ) : (
-                <Tag color="blue">本地落盘</Tag>
-              )}
+              <Tag color={llmChatOnly ? 'purple' : 'blue'}>{llmChatOnly ? 'Chat 模式' : 'Agent 模式'}</Tag>
+              <Tag color={previewStatusColor}>● {previewStatus}</Tag>
+              <Tag>组件 {componentCount}</Tag>
               <div className="toolbar-divider" />
-              {activeView === 'playground' ? (
-                <>
-                  <Button onClick={openMonitoringDashboard}>监控后台</Button>
-                  <Button onClick={() => openDebugDrawer('json')}>协议 JSON</Button>
-                  <Button onClick={() => openDebugDrawer('store')}>状态树</Button>
-                  <Badge count={errorCount} size="small">
-                    <Button danger={errorCount > 0} onClick={() => openDebugDrawer('errors')}>
-                      错误
-                    </Button>
-                  </Badge>
-                </>
-              ) : (
-                <Button onClick={() => setActiveView('playground')}>返回 Playground</Button>
-              )}
+              <Button onClick={openMonitoringDashboard}>监控后台</Button>
+              <Button onClick={() => openDebugDrawer('json')}>协议 JSON</Button>
+              <Button onClick={() => openDebugDrawer('store')}>状态树</Button>
+              <Badge count={errorCount} size="small">
+                <Button danger={errorCount > 0} onClick={() => openDebugDrawer('errors')}>
+                  错误
+                </Button>
+              </Badge>
             </Space>
           </Header>
 

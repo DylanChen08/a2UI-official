@@ -9,3 +9,5 @@ cursor/
 .DS_Store
 **/.pnpm-store/
 **/.pnpm-store
+*.tsbuildinfo
+.tsbuild/
